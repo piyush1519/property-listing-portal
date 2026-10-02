@@ -1,19 +1,36 @@
 const API_URL = "http://localhost:8080/api/properties";
 
+const propertyForm = document.getElementById("property-form");
+const propertyList = document.getElementById("property-list");
 
-// ==========================================
-// Load Properties
-// ==========================================
+const locationFilter = document.getElementById("search-location");
+const typeFilter = document.getElementById("search-type");
+const statusFilter = document.getElementById("search-status");
+const bedroomsFilter = document.getElementById("search-bedrooms");
 
-async function loadProperties(url = API_URL) {
+const searchButton = document.getElementById("search-button");
+const clearFiltersButton = document.getElementById("clear-button");
 
-    const propertyList = document.getElementById("property-list");
+const propertyDetailsContainer = document.getElementById(
+    "property-details-container"
+);
 
-    propertyList.innerHTML = "<p>Loading properties...</p>";
+const propertyDetails = document.getElementById("property-details");
+
+const closeDetailsButton = document.getElementById(
+    "close-details-button"
+);
+
+
+// =====================================================
+// LOAD ALL PROPERTIES
+// =====================================================
+
+async function loadProperties() {
 
     try {
 
-        const response = await fetch(url);
+        const response = await fetch(API_URL);
 
         if (!response.ok) {
             throw new Error("Failed to load properties");
@@ -27,52 +44,55 @@ async function loadProperties(url = API_URL) {
 
         console.error(error);
 
-        propertyList.innerHTML =
-            "<p>Unable to load properties. Make sure the backend is running.</p>";
+        propertyList.innerHTML = `
+            <p class="error-message">
+                Unable to load properties.
+                Make sure the backend is running.
+            </p>
+        `;
     }
 }
 
 
-// ==========================================
-// Display Properties
-// ==========================================
+// =====================================================
+// DISPLAY PROPERTIES
+// =====================================================
 
 function displayProperties(properties) {
-
-    const propertyList = document.getElementById("property-list");
 
     propertyList.innerHTML = "";
 
     if (properties.length === 0) {
 
-        propertyList.innerHTML =
-            "<p>No properties found.</p>";
+        propertyList.innerHTML = `
+            <p>No properties found.</p>
+        `;
 
         return;
     }
 
+
     properties.forEach(property => {
 
-        const propertyCard = document.createElement("div");
+        const card = document.createElement("div");
 
-        propertyCard.className = "property-card";
+        card.className = "property-card";
 
-        propertyCard.innerHTML = `
-            <h3>${property.title}</h3>
 
-            <p>
-                <strong>Description:</strong>
-                ${property.description}
-            </p>
+        card.innerHTML = `
+
+            <h3>
+                ${escapeHtml(property.title)}
+            </h3>
 
             <p>
                 <strong>Location:</strong>
-                ${property.location}
+                ${escapeHtml(property.location)}
             </p>
 
             <p>
                 <strong>Type:</strong>
-                ${property.type}
+                ${escapeHtml(property.type)}
             </p>
 
             <p>
@@ -82,105 +102,292 @@ function displayProperties(properties) {
 
             <p>
                 <strong>Bedrooms:</strong>
-                ${property.bedrooms}
+                ${property.bedrooms ?? "N/A"}
             </p>
 
             <p>
                 <strong>Area:</strong>
-                ${property.area}
-            </p>
-
-            <p>
-                <strong>Owner / Agent:</strong>
-                ${property.ownerAgent || "N/A"}
+                ${property.area ?? "N/A"} sq.ft
             </p>
 
             <p>
                 <strong>Status:</strong>
-                ${property.status}
+                ${escapeHtml(property.status)}
             </p>
 
             <div class="property-actions">
 
                 <button
                     type="button"
-                    onclick="editProperty(${property.id})"
-                >
+                    class="view-details-button"
+                    data-id="${property.id}">
+                    View Details
+                </button>
+
+                <button
+                    type="button"
+                    class="edit-button"
+                    data-id="${property.id}">
                     Edit
                 </button>
 
                 <button
                     type="button"
-                    onclick="deleteProperty(${property.id})"
-                >
+                    class="delete-button"
+                    data-id="${property.id}">
                     Delete
                 </button>
 
             </div>
         `;
 
-        propertyList.appendChild(propertyCard);
 
+        propertyList.appendChild(card);
     });
+
+
+    addPropertyButtonListeners();
 }
 
 
-// ==========================================
-// Add Property
-// ==========================================
+// =====================================================
+// PROPERTY BUTTON LISTENERS
+// =====================================================
 
-document
-    .getElementById("property-form")
-    .addEventListener("submit", async function(event) {
+function addPropertyButtonListeners() {
+
+
+    // View Details
+    document
+        .querySelectorAll(".view-details-button")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+
+                const propertyId = button.dataset.id;
+
+                viewPropertyDetails(propertyId);
+            });
+        });
+
+
+    // Edit
+    document
+        .querySelectorAll(".edit-button")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+
+                const propertyId = button.dataset.id;
+
+                editProperty(propertyId);
+            });
+        });
+
+
+    // Delete
+    document
+        .querySelectorAll(".delete-button")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+
+                const propertyId = button.dataset.id;
+
+                deleteProperty(propertyId);
+            });
+        });
+}
+
+
+// =====================================================
+// VIEW PROPERTY DETAILS
+// =====================================================
+
+async function viewPropertyDetails(propertyId) {
+
+    try {
+
+        const response = await fetch(
+            `${API_URL}/${propertyId}`
+        );
+
+
+        if (!response.ok) {
+
+            throw new Error("Property not found");
+        }
+
+
+        const property = await response.json();
+
+
+        propertyDetails.innerHTML = `
+
+            <div class="details-card">
+
+                <h3>
+                    ${escapeHtml(property.title)}
+                </h3>
+
+                <p>
+                    <strong>Property ID:</strong>
+                    ${property.id}
+                </p>
+
+                <p>
+                    <strong>Description:</strong>
+                    ${escapeHtml(property.description)}
+                </p>
+
+                <p>
+                    <strong>Location:</strong>
+                    ${escapeHtml(property.location)}
+                </p>
+
+                <p>
+                    <strong>Type:</strong>
+                    ${escapeHtml(property.type)}
+                </p>
+
+                <p>
+                    <strong>Price:</strong>
+                    ₹${Number(property.price).toLocaleString("en-IN")}
+                </p>
+
+                <p>
+                    <strong>Bedrooms:</strong>
+                    ${property.bedrooms ?? "N/A"}
+                </p>
+
+                <p>
+                    <strong>Area:</strong>
+                    ${property.area ?? "N/A"} sq.ft
+                </p>
+
+                <p>
+                    <strong>Owner / Agent:</strong>
+                    ${escapeHtml(
+                        property.ownerAgent || "N/A"
+                    )}
+                </p>
+
+                <p>
+                    <strong>Status:</strong>
+                    ${escapeHtml(property.status)}
+                </p>
+
+                <p>
+                    <strong>Created:</strong>
+                    ${formatDate(property.createdAt)}
+                </p>
+
+                <p>
+                    <strong>Last Updated:</strong>
+                    ${formatDate(property.updatedAt)}
+                </p>
+
+            </div>
+        `;
+
+
+        propertyDetailsContainer.style.display = "block";
+
+
+        propertyDetailsContainer.scrollIntoView({
+            behavior: "smooth"
+        });
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        alert("Unable to load property details.");
+    }
+}
+
+
+// =====================================================
+// CLOSE PROPERTY DETAILS
+// =====================================================
+
+closeDetailsButton.addEventListener(
+    "click",
+    () => {
+
+        propertyDetailsContainer.style.display = "none";
+
+        propertyDetails.innerHTML = "";
+    }
+);
+
+
+// =====================================================
+// ADD PROPERTY
+// =====================================================
+
+propertyForm.addEventListener(
+    "submit",
+    async function(event) {
 
         event.preventDefault();
 
-        const formMessage =
-            document.getElementById("form-message");
 
         const property = {
 
             title:
-                document.getElementById("title").value.trim(),
+                document.getElementById("title").value,
 
             description:
-                document.getElementById("description").value.trim(),
+                document.getElementById("description").value,
 
             location:
-                document.getElementById("location").value.trim(),
+                document.getElementById("location").value,
 
             type:
-                document.getElementById("type").value.trim(),
+                document.getElementById("type").value,
 
             price:
-                Number(document.getElementById("price").value),
+                Number(
+                    document.getElementById("price").value
+                ),
 
             bedrooms:
-                Number(document.getElementById("bedrooms").value),
+                Number(
+                    document.getElementById("bedrooms").value
+                ),
 
             area:
-                Number(document.getElementById("area").value),
+                Number(
+                    document.getElementById("area").value
+                ),
 
             ownerAgent:
-                document.getElementById("ownerAgent").value.trim(),
+                document.getElementById("ownerAgent").value,
 
             status:
-                document.getElementById("status").value.trim()
+                document.getElementById("status").value
         };
 
 
         try {
 
-            const response = await fetch(API_URL, {
+            const response = await fetch(
+                API_URL,
+                {
 
-                method: "POST",
+                    method: "POST",
 
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
 
-                body: JSON.stringify(property)
-            });
+                    body:
+                        JSON.stringify(property)
+                }
+            );
 
 
             if (!response.ok) {
@@ -192,25 +399,12 @@ document
             }
 
 
-            const savedProperty =
-                await response.json();
-
-            console.log("Property created:", savedProperty);
-
-
-            formMessage.textContent =
-                "Property added successfully!";
-
-            formMessage.style.color = "green";
+            alert(
+                "Property added successfully!"
+            );
 
 
-            document
-                .getElementById("property-form")
-                .reset();
-
-
-            document.getElementById("status").value =
-                "AVAILABLE";
+            propertyForm.reset();
 
 
             await loadProperties();
@@ -220,29 +414,151 @@ document
 
             console.error(error);
 
-            formMessage.textContent =
-                "Failed to add property.";
+            alert(
+                "Failed to add property."
+            );
+        }
+    }
+);
 
-            formMessage.style.color = "red";
+
+// =====================================================
+// SEARCH / FILTER
+// =====================================================
+
+searchButton.addEventListener(
+    "click",
+    async function() {
+
+        const location =
+            locationFilter.value.trim();
+
+        const type =
+            typeFilter.value;
+
+        const status =
+            statusFilter.value;
+
+        const bedrooms =
+            bedroomsFilter.value;
+
+
+        const params =
+            new URLSearchParams();
+
+
+        if (location) {
+
+            params.append(
+                "location",
+                location
+            );
         }
 
-    });
+
+        if (type) {
+
+            params.append(
+                "type",
+                type
+            );
+        }
 
 
-// ==========================================
-// Edit Property
-// ==========================================
+        if (status) {
 
-async function editProperty(id) {
+            params.append(
+                "status",
+                status
+            );
+        }
+
+
+        if (bedrooms) {
+
+            params.append(
+                "bedrooms",
+                bedrooms
+            );
+        }
+
+
+        try {
+
+            const response =
+                await fetch(
+                    `${API_URL}/search?${params.toString()}`
+                );
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "Search failed"
+                );
+            }
+
+
+            const properties =
+                await response.json();
+
+
+            displayProperties(properties);
+
+
+        } catch (error) {
+
+            console.error(error);
+
+            alert(
+                "Search failed."
+            );
+        }
+    }
+);
+
+
+// =====================================================
+// CLEAR FILTERS
+// =====================================================
+
+clearFiltersButton.addEventListener(
+    "click",
+    function() {
+
+        locationFilter.value = "";
+
+        typeFilter.value = "";
+
+        statusFilter.value = "";
+
+        bedroomsFilter.value = "";
+
+
+        loadProperties();
+    }
+);
+
+
+// =====================================================
+// EDIT PROPERTY
+// =====================================================
+
+async function editProperty(propertyId) {
 
     try {
 
         const response =
-            await fetch(`${API_URL}/${id}`);
+            await fetch(
+                `${API_URL}/${propertyId}`
+            );
 
 
         if (!response.ok) {
-            throw new Error("Failed to load property");
+
+            throw new Error(
+                "Property not found"
+            );
         }
 
 
@@ -250,310 +566,124 @@ async function editProperty(id) {
             await response.json();
 
 
-        showEditForm(property);
-
-
-    } catch (error) {
-
-        console.error(error);
-
-        alert("Unable to load property for editing.");
-
-    }
-}
-
-
-// ==========================================
-// Create Edit Form
-// ==========================================
-
-function showEditForm(property) {
-
-    let editContainer =
-        document.getElementById("edit-property-container");
-
-
-    if (!editContainer) {
-
-        editContainer =
-            document.createElement("section");
-
-        editContainer.id =
-            "edit-property-container";
-
-        editContainer.className =
-            "form-section";
-
-
-        const main =
-            document.querySelector("main");
-
-        main.insertBefore(
-            editContainer,
-            document.querySelector(".property-section")
-        );
-    }
-
-
-    editContainer.innerHTML = `
-
-        <h2>Edit Property</h2>
-
-        <form id="edit-property-form">
-
-            <input
-                type="text"
-                id="edit-title"
-                placeholder="Property title"
-                value="${escapeHtml(property.title)}"
-                required
-            >
-
-            <textarea
-                id="edit-description"
-                placeholder="Description"
-                required
-            >${escapeHtml(property.description)}</textarea>
-
-            <input
-                type="text"
-                id="edit-location"
-                placeholder="Location"
-                value="${escapeHtml(property.location)}"
-                required
-            >
-
-            <input
-                type="text"
-                id="edit-type"
-                placeholder="Property type"
-                value="${escapeHtml(property.type)}"
-                required
-            >
-
-            <input
-                type="number"
-                id="edit-price"
-                placeholder="Price"
-                min="1"
-                value="${property.price}"
-                required
-            >
-
-            <input
-                type="number"
-                id="edit-bedrooms"
-                placeholder="Bedrooms"
-                min="0"
-                value="${property.bedrooms}"
-                required
-            >
-
-            <input
-                type="number"
-                id="edit-area"
-                placeholder="Area"
-                min="1"
-                value="${property.area}"
-                required
-            >
-
-            <input
-                type="text"
-                id="edit-ownerAgent"
-                placeholder="Owner / Agent"
-                value="${escapeHtml(property.ownerAgent || "")}"
-            >
-
-            <select
-                id="edit-status"
-                required
-            >
-                <option value="AVAILABLE"
-                    ${property.status === "AVAILABLE" ? "selected" : ""}>
-                    AVAILABLE
-                </option>
-
-                <option value="SOLD"
-                    ${property.status === "SOLD" ? "selected" : ""}>
-                    SOLD
-                </option>
-
-                <option value="RENTED"
-                    ${property.status === "RENTED" ? "selected" : ""}>
-                    RENTED
-                </option>
-            </select>
-
-
-            <div class="filter-buttons">
-
-                <button type="submit">
-                    Update Property
-                </button>
-
-                <button
-                    type="button"
-                    id="cancel-edit-button"
-                >
-                    Cancel
-                </button>
-
-            </div>
-
-        </form>
-
-        <p id="edit-form-message"></p>
-    `;
-
-
-    document
-        .getElementById("edit-property-form")
-        .addEventListener(
-            "submit",
-            async function(event) {
-
-                event.preventDefault();
-
-                await updateProperty(property.id);
-            }
-        );
-
-
-    document
-        .getElementById("cancel-edit-button")
-        .addEventListener(
-            "click",
-            function() {
-
-                editContainer.remove();
-
-            }
-        );
-
-
-    editContainer.scrollIntoView({
-        behavior: "smooth"
-    });
-}
-
-
-// ==========================================
-// Update Property
-// ==========================================
-
-async function updateProperty(id) {
-
-    const message =
-        document.getElementById("edit-form-message");
-
-
-    const updatedProperty = {
-
-        title:
-            document.getElementById("edit-title").value.trim(),
-
-        description:
-            document.getElementById("edit-description").value.trim(),
-
-        location:
-            document.getElementById("edit-location").value.trim(),
-
-        type:
-            document.getElementById("edit-type").value.trim(),
-
-        price:
-            Number(document.getElementById("edit-price").value),
-
-        bedrooms:
-            Number(document.getElementById("edit-bedrooms").value),
-
-        area:
-            Number(document.getElementById("edit-area").value),
-
-        ownerAgent:
-            document.getElementById("edit-ownerAgent").value.trim(),
-
-        status:
-            document.getElementById("edit-status").value
-    };
-
-
-    try {
-
-        const response =
-            await fetch(`${API_URL}/${id}`, {
-
-                method: "PUT",
-
-                headers: {
-                    "Content-Type": "application/json"
-                },
-
-                body: JSON.stringify(updatedProperty)
-            });
-
-
-        if (!response.ok) {
-
-            const errorText =
-                await response.text();
-
-            throw new Error(errorText);
+        const newTitle =
+            prompt(
+                "Enter property title:",
+                property.title
+            );
+
+
+        if (newTitle === null) {
+            return;
         }
 
 
-        const updated =
-            await response.json();
+        const newPrice =
+            prompt(
+                "Enter property price:",
+                property.price
+            );
 
 
-        console.log(
-            "Property updated:",
-            updated
+        if (newPrice === null) {
+            return;
+        }
+
+
+        const newStatus =
+            prompt(
+                "Enter status (AVAILABLE, SOLD, RENTED):",
+                property.status
+            );
+
+
+        if (newStatus === null) {
+            return;
+        }
+
+
+        const updatedProperty = {
+
+            title: newTitle,
+
+            description:
+                property.description,
+
+            location:
+                property.location,
+
+            type:
+                property.type,
+
+            price:
+                Number(newPrice),
+
+            bedrooms:
+                property.bedrooms,
+
+            area:
+                property.area,
+
+            ownerAgent:
+                property.ownerAgent,
+
+            status:
+                newStatus.toUpperCase()
+        };
+
+
+        const updateResponse =
+            await fetch(
+                `${API_URL}/${propertyId}`,
+                {
+
+                    method: "PUT",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify(
+                            updatedProperty
+                        )
+                }
+            );
+
+
+        if (!updateResponse.ok) {
+
+            throw new Error(
+                "Update failed"
+            );
+        }
+
+
+        alert(
+            "Property updated successfully!"
         );
 
 
-        message.textContent =
-            "Property updated successfully!";
-
-        message.style.color =
-            "green";
-
-
-        setTimeout(async function() {
-
-            const editContainer =
-                document.getElementById(
-                    "edit-property-container"
-                );
-
-            if (editContainer) {
-                editContainer.remove();
-            }
-
-            await loadProperties();
-
-        }, 700);
+        await loadProperties();
 
 
     } catch (error) {
 
         console.error(error);
 
-        message.textContent =
-            "Failed to update property.";
-
-        message.style.color =
-            "red";
+        alert(
+            "Failed to update property."
+        );
     }
 }
 
 
-// ==========================================
-// Delete Property
-// ==========================================
+// =====================================================
+// DELETE PROPERTY
+// =====================================================
 
-async function deleteProperty(id) {
+async function deleteProperty(propertyId) {
 
     const confirmed =
         confirm(
@@ -569,22 +699,24 @@ async function deleteProperty(id) {
     try {
 
         const response =
-            await fetch(`${API_URL}/${id}`, {
-
-                method: "DELETE"
-            });
+            await fetch(
+                `${API_URL}/${propertyId}`,
+                {
+                    method: "DELETE"
+                }
+            );
 
 
         if (!response.ok) {
 
             throw new Error(
-                "Failed to delete property"
+                "Delete failed"
             );
         }
 
 
         alert(
-            "Property deleted successfully."
+            "Property deleted successfully!"
         );
 
 
@@ -596,115 +728,70 @@ async function deleteProperty(id) {
         console.error(error);
 
         alert(
-            "Unable to delete property."
+            "Failed to delete property."
         );
     }
 }
 
 
-// ==========================================
-// Escape HTML
-// ==========================================
+// =====================================================
+// HELPER FUNCTIONS
+// =====================================================
 
-function escapeHtml(value) {
+function formatDate(dateValue) {
 
-    if (value === null || value === undefined) {
-        return "";
+    if (!dateValue) {
+        return "N/A";
     }
 
-    return String(value)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+
+    return new Date(
+        dateValue
+    ).toLocaleString("en-IN");
 }
 
 
-// ==========================================
-// Search & Filter
-// ==========================================
+function escapeHtml(value) {
 
-document
-    .getElementById("search-button")
-    .addEventListener("click", async function() {
-
-        const location =
-            document
-                .getElementById("search-location")
-                .value
-                .trim();
-
-        const type =
-            document.getElementById("search-type").value;
-
-        const status =
-            document.getElementById("search-status").value;
-
-        const bedrooms =
-            document.getElementById("search-bedrooms").value;
+    if (
+        value === null ||
+        value === undefined
+    ) {
+        return "";
+    }
 
 
-        const params =
-            new URLSearchParams();
+    return String(value)
+
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+
+        .replace(
+            /</g,
+            "&lt;"
+        )
+
+        .replace(
+            />/g,
+            "&gt;"
+        )
+
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+
+        .replace(
+            /'/g,
+            "&#039;"
+        );
+}
 
 
-        if (location) {
-            params.append("location", location);
-        }
-
-        if (type) {
-            params.append("type", type);
-        }
-
-        if (status) {
-            params.append("status", status);
-        }
-
-        if (bedrooms) {
-            params.append("bedrooms", bedrooms);
-        }
-
-
-        const queryString =
-            params.toString();
-
-
-        const searchURL =
-            queryString
-                ? `${API_URL}/search?${queryString}`
-                : API_URL;
-
-
-        await loadProperties(searchURL);
-
-    });
-
-
-// ==========================================
-// Clear Filters
-// ==========================================
-
-document
-    .getElementById("clear-button")
-    .addEventListener("click", async function() {
-
-        document.getElementById("search-location").value = "";
-
-        document.getElementById("search-type").value = "";
-
-        document.getElementById("search-status").value = "";
-
-        document.getElementById("search-bedrooms").value = "";
-
-
-        await loadProperties(API_URL);
-
-    });
-
-
-// ==========================================
-// Initial Page Load
-// ==========================================
+// =====================================================
+// INITIAL LOAD
+// =====================================================
 
 loadProperties();
