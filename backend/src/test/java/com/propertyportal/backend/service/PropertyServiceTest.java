@@ -1,6 +1,7 @@
 package com.propertyportal.backend.service;
 
 import com.propertyportal.backend.entity.Property;
+import com.propertyportal.backend.exception.ResourceNotFoundException;
 import com.propertyportal.backend.repository.PropertyRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -85,9 +86,42 @@ class PropertyServiceTest {
 
     @Test
     void shouldDeleteProperty() {
-        propertyService.deleteProperty(1L);
+        Long propertyId = 1L;
 
-        verify(propertyRepository).deleteById(1L);
+        when(propertyRepository.existsById(propertyId))
+                .thenReturn(true);
+
+        propertyService.deleteProperty(propertyId);
+
+        verify(propertyRepository)
+                .existsById(propertyId);
+
+        verify(propertyRepository)
+                .deleteById(propertyId);
+    }
+
+    @Test
+    void shouldThrowExceptionWhenDeletingMissingProperty() {
+        Long propertyId = 999L;
+
+        when(propertyRepository.existsById(propertyId))
+                .thenReturn(false);
+
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
+                () -> propertyService.deleteProperty(propertyId)
+        );
+
+        assertEquals(
+                "Property not found with id: 999",
+                exception.getMessage()
+        );
+
+        verify(propertyRepository)
+                .existsById(propertyId);
+
+        verify(propertyRepository, never())
+                .deleteById(propertyId);
     }
 
     @Test
@@ -98,7 +132,8 @@ class PropertyServiceTest {
         when(propertyRepository.findByLocationContainingIgnoreCase("Mumbai"))
                 .thenReturn(List.of(property));
 
-        List<Property> result = propertyService.searchByLocation("Mumbai");
+        List<Property> result =
+                propertyService.searchByLocation("Mumbai");
 
         assertEquals(1, result.size());
         assertEquals("Mumbai", result.get(0).getLocation());
@@ -115,7 +150,8 @@ class PropertyServiceTest {
         when(propertyRepository.findByTypeIgnoreCase("Apartment"))
                 .thenReturn(List.of(property));
 
-        List<Property> result = propertyService.searchByType("Apartment");
+        List<Property> result =
+                propertyService.searchByType("Apartment");
 
         assertEquals(1, result.size());
         assertEquals("Apartment", result.get(0).getType());
@@ -132,7 +168,8 @@ class PropertyServiceTest {
         when(propertyRepository.findByStatusIgnoreCase("AVAILABLE"))
                 .thenReturn(List.of(property));
 
-        List<Property> result = propertyService.searchByStatus("AVAILABLE");
+        List<Property> result =
+                propertyService.searchByStatus("AVAILABLE");
 
         assertEquals(1, result.size());
         assertEquals("AVAILABLE", result.get(0).getStatus());
@@ -149,7 +186,8 @@ class PropertyServiceTest {
         when(propertyRepository.findByBedrooms(2))
                 .thenReturn(List.of(property));
 
-        List<Property> result = propertyService.searchByBedrooms(2);
+        List<Property> result =
+                propertyService.searchByBedrooms(2);
 
         assertEquals(1, result.size());
         assertEquals(2, result.get(0).getBedrooms());
@@ -188,6 +226,7 @@ class PropertyServiceTest {
     @Test
     void shouldUpdateProperty() {
         Property existingProperty = new Property();
+
         existingProperty.setTitle("Old Title");
         existingProperty.setDescription("Old Description");
         existingProperty.setLocation("Mumbai");
@@ -199,6 +238,7 @@ class PropertyServiceTest {
         existingProperty.setStatus("AVAILABLE");
 
         Property updatedProperty = new Property();
+
         updatedProperty.setTitle("Updated Title");
         updatedProperty.setDescription("Updated Description");
         updatedProperty.setLocation("Pune");
@@ -216,20 +256,61 @@ class PropertyServiceTest {
                 .thenReturn(existingProperty);
 
         Property result =
-                propertyService.updateProperty(1L, updatedProperty);
+                propertyService.updateProperty(
+                        1L,
+                        updatedProperty
+                );
 
-        assertEquals("Updated Title", result.getTitle());
-        assertEquals("Updated Description", result.getDescription());
-        assertEquals("Pune", result.getLocation());
-        assertEquals("Villa", result.getType());
-        assertEquals(8000000.0, result.getPrice());
-        assertEquals(3, result.getBedrooms());
-        assertEquals(1500.0, result.getArea());
-        assertEquals("New Agent", result.getOwnerAgent());
-        assertEquals("SOLD", result.getStatus());
+        assertEquals(
+                "Updated Title",
+                result.getTitle()
+        );
 
-        verify(propertyRepository).findById(1L);
-        verify(propertyRepository).save(existingProperty);
+        assertEquals(
+                "Updated Description",
+                result.getDescription()
+        );
+
+        assertEquals(
+                "Pune",
+                result.getLocation()
+        );
+
+        assertEquals(
+                "Villa",
+                result.getType()
+        );
+
+        assertEquals(
+                8000000.0,
+                result.getPrice()
+        );
+
+        assertEquals(
+                3,
+                result.getBedrooms()
+        );
+
+        assertEquals(
+                1500.0,
+                result.getArea()
+        );
+
+        assertEquals(
+                "New Agent",
+                result.getOwnerAgent()
+        );
+
+        assertEquals(
+                "SOLD",
+                result.getStatus()
+        );
+
+        verify(propertyRepository)
+                .findById(1L);
+
+        verify(propertyRepository)
+                .save(existingProperty);
     }
 
     @Test
@@ -239,9 +320,12 @@ class PropertyServiceTest {
         when(propertyRepository.findById(999L))
                 .thenReturn(Optional.empty());
 
-        RuntimeException exception = assertThrows(
-                RuntimeException.class,
-                () -> propertyService.updateProperty(999L, updatedProperty)
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
+                () -> propertyService.updateProperty(
+                        999L,
+                        updatedProperty
+                )
         );
 
         assertEquals(
@@ -249,7 +333,12 @@ class PropertyServiceTest {
                 exception.getMessage()
         );
 
-        verify(propertyRepository).findById(999L);
-        verify(propertyRepository, never()).save(any(Property.class));
+        verify(propertyRepository)
+                .findById(999L);
+
+        verify(
+                propertyRepository,
+                never()
+        ).save(any(Property.class));
     }
 }
