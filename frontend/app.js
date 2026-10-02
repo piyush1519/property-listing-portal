@@ -23,6 +23,23 @@ const closeDetailsButton = document.getElementById(
 
 
 // =====================================================
+// DASHBOARD ELEMENTS
+// =====================================================
+
+const totalPropertiesElement =
+    document.getElementById("total-properties");
+
+const availablePropertiesElement =
+    document.getElementById("available-properties");
+
+const soldPropertiesElement =
+    document.getElementById("sold-properties");
+
+const rentedPropertiesElement =
+    document.getElementById("rented-properties");
+
+
+// =====================================================
 // LOAD ALL PROPERTIES
 // =====================================================
 
@@ -40,6 +57,8 @@ async function loadProperties() {
 
         displayProperties(properties);
 
+        updateDashboard(properties);
+
     } catch (error) {
 
         console.error(error);
@@ -51,6 +70,54 @@ async function loadProperties() {
             </p>
         `;
     }
+}
+
+
+// =====================================================
+// UPDATE DASHBOARD
+// =====================================================
+
+function updateDashboard(properties) {
+
+    const total =
+        properties.length;
+
+
+    const available =
+        properties.filter(
+            property =>
+                property.status &&
+                property.status.toUpperCase() === "AVAILABLE"
+        ).length;
+
+
+    const sold =
+        properties.filter(
+            property =>
+                property.status &&
+                property.status.toUpperCase() === "SOLD"
+        ).length;
+
+
+    const rented =
+        properties.filter(
+            property =>
+                property.status &&
+                property.status.toUpperCase() === "RENTED"
+        ).length;
+
+
+    totalPropertiesElement.textContent =
+        total;
+
+    availablePropertiesElement.textContent =
+        available;
+
+    soldPropertiesElement.textContent =
+        sold;
+
+    rentedPropertiesElement.textContent =
+        rented;
 }
 
 
@@ -157,42 +224,42 @@ function displayProperties(properties) {
 function addPropertyButtonListeners() {
 
 
-    // View Details
     document
         .querySelectorAll(".view-details-button")
         .forEach(button => {
 
             button.addEventListener("click", () => {
 
-                const propertyId = button.dataset.id;
+                const propertyId =
+                    button.dataset.id;
 
                 viewPropertyDetails(propertyId);
             });
         });
 
 
-    // Edit
     document
         .querySelectorAll(".edit-button")
         .forEach(button => {
 
             button.addEventListener("click", () => {
 
-                const propertyId = button.dataset.id;
+                const propertyId =
+                    button.dataset.id;
 
                 editProperty(propertyId);
             });
         });
 
 
-    // Delete
     document
         .querySelectorAll(".delete-button")
         .forEach(button => {
 
             button.addEventListener("click", () => {
 
-                const propertyId = button.dataset.id;
+                const propertyId =
+                    button.dataset.id;
 
                 deleteProperty(propertyId);
             });
@@ -208,18 +275,22 @@ async function viewPropertyDetails(propertyId) {
 
     try {
 
-        const response = await fetch(
-            `${API_URL}/${propertyId}`
-        );
+        const response =
+            await fetch(
+                `${API_URL}/${propertyId}`
+            );
 
 
         if (!response.ok) {
 
-            throw new Error("Property not found");
+            throw new Error(
+                "Property not found"
+            );
         }
 
 
-        const property = await response.json();
+        const property =
+            await response.json();
 
 
         propertyDetails.innerHTML = `
@@ -291,7 +362,8 @@ async function viewPropertyDetails(propertyId) {
         `;
 
 
-        propertyDetailsContainer.style.display = "block";
+        propertyDetailsContainer.style.display =
+            "block";
 
 
         propertyDetailsContainer.scrollIntoView({
@@ -303,7 +375,9 @@ async function viewPropertyDetails(propertyId) {
 
         console.error(error);
 
-        alert("Unable to load property details.");
+        alert(
+            "Unable to load property details."
+        );
     }
 }
 
@@ -316,7 +390,8 @@ closeDetailsButton.addEventListener(
     "click",
     () => {
 
-        propertyDetailsContainer.style.display = "none";
+        propertyDetailsContainer.style.display =
+            "none";
 
         propertyDetails.innerHTML = "";
     }
@@ -373,21 +448,21 @@ propertyForm.addEventListener(
 
         try {
 
-            const response = await fetch(
-                API_URL,
-                {
+            const response =
+                await fetch(
+                    API_URL,
+                    {
+                        method: "POST",
 
-                    method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
 
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body:
-                        JSON.stringify(property)
-                }
-            );
+                        body:
+                            JSON.stringify(property)
+                    }
+                );
 
 
             if (!response.ok) {
@@ -534,7 +609,6 @@ clearFiltersButton.addEventListener(
 
         bedroomsFilter.value = "";
 
-
         loadProperties();
     }
 );
@@ -604,7 +678,8 @@ async function editProperty(propertyId) {
 
         const updatedProperty = {
 
-            title: newTitle,
+            title:
+                newTitle,
 
             description:
                 property.description,
@@ -636,7 +711,6 @@ async function editProperty(propertyId) {
             await fetch(
                 `${API_URL}/${propertyId}`,
                 {
-
                     method: "PUT",
 
                     headers: {

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,9 +17,13 @@
     <p>Find and manage properties easily</p>
 </header>
 
+
 <main>
 
-    <!-- Add Property Section -->
+    <!-- =====================================================
+         ADD PROPERTY SECTION
+         ===================================================== -->
+
     <section class="form-section">
 
         <h2>Add Property</h2>
@@ -101,7 +106,68 @@
     </section>
 
 
-    <!-- Search and Filter Section -->
+    <!-- =====================================================
+         PROPERTY DASHBOARD SECTION
+         ===================================================== -->
+
+    <section class="dashboard-section">
+
+        <h2>Property Dashboard</h2>
+
+        <div class="dashboard-cards">
+
+            <div class="dashboard-card">
+
+                <h3>Total Properties</h3>
+
+                <p id="total-properties">
+                    0
+                </p>
+
+            </div>
+
+
+            <div class="dashboard-card">
+
+                <h3>Available</h3>
+
+                <p id="available-properties">
+                    0
+                </p>
+
+            </div>
+
+
+            <div class="dashboard-card">
+
+                <h3>Sold</h3>
+
+                <p id="sold-properties">
+                    0
+                </p>
+
+            </div>
+
+
+            <div class="dashboard-card">
+
+                <h3>Rented</h3>
+
+                <p id="rented-properties">
+                    0
+                </p>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- =====================================================
+         SEARCH AND FILTER SECTION
+         ===================================================== -->
+
     <section class="search-section">
 
         <h2>Search & Filter Properties</h2>
@@ -114,29 +180,81 @@
                 placeholder="Search by location"
             >
 
+
             <select id="search-type">
-                <option value="">All Property Types</option>
-                <option value="Apartment">Apartment</option>
-                <option value="House">House</option>
-                <option value="Villa">Villa</option>
-                <option value="Plot">Plot</option>
+
+                <option value="">
+                    All Property Types
+                </option>
+
+                <option value="Apartment">
+                    Apartment
+                </option>
+
+                <option value="House">
+                    House
+                </option>
+
+                <option value="Villa">
+                    Villa
+                </option>
+
+                <option value="Plot">
+                    Plot
+                </option>
+
             </select>
+
 
             <select id="search-status">
-                <option value="">All Statuses</option>
-                <option value="AVAILABLE">Available</option>
-                <option value="SOLD">Sold</option>
-                <option value="RENTED">Rented</option>
+
+                <option value="">
+                    All Statuses
+                </option>
+
+                <option value="AVAILABLE">
+                    Available
+                </option>
+
+                <option value="SOLD">
+                    Sold
+                </option>
+
+                <option value="RENTED">
+                    Rented
+                </option>
+
             </select>
 
+
             <select id="search-bedrooms">
-                <option value="">Any Bedrooms</option>
-                <option value="1">1 Bedroom</option>
-                <option value="2">2 Bedrooms</option>
-                <option value="3">3 Bedrooms</option>
-                <option value="4">4 Bedrooms</option>
-                <option value="5">5 Bedrooms</option>
+
+                <option value="">
+                    Any Bedrooms
+                </option>
+
+                <option value="1">
+                    1 Bedroom
+                </option>
+
+                <option value="2">
+                    2 Bedrooms
+                </option>
+
+                <option value="3">
+                    3 Bedrooms
+                </option>
+
+                <option value="4">
+                    4 Bedrooms
+                </option>
+
+                <option value="5">
+                    5 Bedrooms
+                </option>
+
             </select>
+
 
             <div class="filter-buttons">
 
@@ -146,6 +264,7 @@
                 >
                     Search
                 </button>
+
 
                 <button
                     type="button"
@@ -161,29 +280,43 @@
     </section>
 
 
-    <!-- Property List Section -->
+    <!-- =====================================================
+         PROPERTY LIST SECTION
+         ===================================================== -->
+
     <section class="property-section">
 
         <h2>Available Properties</h2>
 
         <div id="property-list">
-            <p>Loading properties...</p>
+
+            <p>
+                Loading properties...
+            </p>
+
         </div>
 
     </section>
 
 
-    <!-- Property Details Section -->
+    <!-- =====================================================
+         PROPERTY DETAILS SECTION
+         ===================================================== -->
+
     <section
         id="property-details-container"
         class="property-details-section"
         style="display: none;"
     >
 
-        <h2>Property Details</h2>
+        <h2>
+            Property Details
+        </h2>
+
 
         <div id="property-details">
         </div>
+
 
         <button
             type="button"
@@ -196,7 +329,13 @@
 
 </main>
 
+
+<!-- =====================================================
+     JAVASCRIPT
+     ===================================================== -->
+
 <script src="app.js"></script>
 
 </body>
+
 </html>
