@@ -18,6 +18,88 @@
 
 <main>
 
+    <section class="form-section">
+
+        <h2>Add Property</h2>
+
+        <form id="property-form">
+
+            <input
+                type="text"
+                id="title"
+                placeholder="Property title"
+                required
+            >
+
+            <textarea
+                id="description"
+                placeholder="Description"
+                required
+            ></textarea>
+
+            <input
+                type="text"
+                id="location"
+                placeholder="Location"
+                required
+            >
+
+            <input
+                type="text"
+                id="type"
+                placeholder="Property type"
+                required
+            >
+
+            <input
+                type="number"
+                id="price"
+                placeholder="Price"
+                min="1"
+                required
+            >
+
+            <input
+                type="number"
+                id="bedrooms"
+                placeholder="Bedrooms"
+                min="0"
+                required
+            >
+
+            <input
+                type="number"
+                id="area"
+                placeholder="Area"
+                min="1"
+                required
+            >
+
+            <input
+                type="text"
+                id="ownerAgent"
+                placeholder="Owner / Agent"
+            >
+
+            <input
+                type="text"
+                id="status"
+                value="AVAILABLE"
+                placeholder="Status"
+                required
+            >
+
+            <button type="submit">
+                Add Property
+            </button>
+
+        </form>
+
+        <p id="form-message"></p>
+
+    </section>
+
+
     <section class="property-section">
 
         <h2>Available Properties</h2>

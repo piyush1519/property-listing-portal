@@ -51,6 +51,11 @@ async function loadProperties() {
                 </p>
 
                 <p>
+                    <strong>Owner / Agent:</strong>
+                    ${property.ownerAgent || "N/A"}
+                </p>
+
+                <p>
                     <strong>Status:</strong>
                     ${property.status}
                 </p>
@@ -66,5 +71,61 @@ async function loadProperties() {
             "<p>Unable to load properties. Please make sure the backend is running.</p>";
     }
 }
+
+
+document
+    .getElementById("property-form")
+    .addEventListener("submit", async function(event) {
+
+        event.preventDefault();
+
+        const formMessage = document.getElementById("form-message");
+
+        const property = {
+            title: document.getElementById("title").value,
+            description: document.getElementById("description").value,
+            location: document.getElementById("location").value,
+            type: document.getElementById("type").value,
+            price: Number(document.getElementById("price").value),
+            bedrooms: Number(document.getElementById("bedrooms").value),
+            area: Number(document.getElementById("area").value),
+            ownerAgent: document.getElementById("ownerAgent").value,
+            status: document.getElementById("status").value
+        };
+
+        try {
+
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(property)
+            });
+
+            if (!response.ok) {
+
+                const errorText = await response.text();
+
+                throw new Error(errorText || "Failed to create property");
+            }
+
+            formMessage.textContent = "Property added successfully.";
+
+            document.getElementById("property-form").reset();
+
+            document.getElementById("status").value = "AVAILABLE";
+
+            await loadProperties();
+
+        } catch (error) {
+
+            console.error(error);
+
+            formMessage.textContent =
+                "Unable to add property. Please check the entered information.";
+        }
+    });
+
 
 loadProperties();
