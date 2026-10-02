@@ -2,6 +2,7 @@ package com.propertyportal.backend.controller;
 
 import com.propertyportal.backend.entity.Property;
 import com.propertyportal.backend.service.PropertyService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -32,7 +33,9 @@ public class PropertyController {
     }
 
     @PostMapping
-    public ResponseEntity<Property> createProperty(@RequestBody Property property) {
+    public ResponseEntity<Property> createProperty(
+            @Valid @RequestBody Property property) {
+
         Property createdProperty = propertyService.createProperty(property);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdProperty);
     }
@@ -40,7 +43,7 @@ public class PropertyController {
     @PutMapping("/{id}")
     public ResponseEntity<Property> updateProperty(
             @PathVariable Long id,
-            @RequestBody Property property) {
+            @Valid @RequestBody Property property) {
 
         try {
             Property updatedProperty = propertyService.updateProperty(id, property);

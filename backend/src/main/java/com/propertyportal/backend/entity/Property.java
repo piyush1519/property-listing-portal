@@ -1,6 +1,11 @@
 package com.propertyportal.backend.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -11,27 +16,36 @@ public class Property {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "Title is required")
     @Column(nullable = false)
     private String title;
 
+    @NotBlank(message = "Description is required")
     @Column(nullable = false, length = 2000)
     private String description;
 
+    @NotBlank(message = "Location is required")
     @Column(nullable = false)
     private String location;
 
+    @NotBlank(message = "Property type is required")
     @Column(nullable = false)
     private String type;
 
+    @NotNull(message = "Price is required")
+    @Positive(message = "Price must be greater than zero")
     @Column(nullable = false)
     private Double price;
 
+    @Min(value = 0, message = "Bedrooms cannot be negative")
     private Integer bedrooms;
 
+    @Positive(message = "Area must be greater than zero")
     private Double area;
 
     private String ownerAgent;
 
+    @NotBlank(message = "Status is required")
     @Column(nullable = false)
     private String status;
 
