@@ -65,18 +65,22 @@ pipeline {
                         if not exist "C:\\property-portal-deploy" mkdir "C:\\property-portal-deploy"
 
                         echo Stopping previous application...
+
                         powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process -Filter \\"Name = 'java.exe'\\" | Where-Object { $_.CommandLine -like '*backend-0.0.1-SNAPSHOT.jar*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"
 
-                        timeout /t 3 /nobreak >nul
+                        powershell -NoProfile -Command "Start-Sleep -Seconds 3"
 
                         echo Copying new application...
+
                         copy /Y "backend\\target\\backend-0.0.1-SNAPSHOT.jar" "C:\\property-portal-deploy\\backend.jar"
 
                         echo Starting Spring Boot application...
+
                         start "" /B powershell -NoProfile -ExecutionPolicy Bypass -Command "$env:DB_PASSWORD='%DB_PASSWORD%'; java -jar 'C:\\property-portal-deploy\\backend.jar' --server.port=8080 > 'C:\\property-portal-deploy\\backend.log' 2>&1"
 
                         echo Waiting for application startup...
-                        timeout /t 15 /nobreak >nul
+
+                        powershell -NoProfile -Command "Start-Sleep -Seconds 15"
                     '''
                 }
             }
