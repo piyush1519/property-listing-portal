@@ -1,0 +1,53 @@
+pipeline {
+    agent any
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Environment Check') {
+            steps {
+                powershell '''
+                    Write-Host "Checking Selenium environment..."
+
+                    if (Test-Path "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe") {
+                        Write-Host "Chrome found."
+                    } else {
+                        Write-Error "Chrome not found."
+                    }
+
+                    java -version
+                    mvn -version
+                '''
+            }
+        }
+
+        stage('Selenium Tests') {
+            steps {
+                dir('tests/selenium') {
+                    bat 'mvn clean test'
+                }
+            }
+
+            post {
+                always {
+                    junit 'tests/selenium/target/surefire-reports/*.xml'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Selenium test pipeline completed successfully.'
+        }
+
+        failure {
+            echo 'Selenium test pipeline failed.'
+        }
+    }
+}
