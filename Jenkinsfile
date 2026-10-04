@@ -4,20 +4,21 @@ pipeline {
     parameters {
         string(
             name: 'DEPLOY_ENV',
-            defaultValue: 'local',
+            defaultValue: 'docker',
             description: 'Deployment environment'
         )
 
         string(
             name: 'DOCKER_PORT',
             defaultValue: '8090',
-            description: 'Host port for Docker container'
+            description: 'Host port for Docker application'
         )
     }
 
     environment {
         IMAGE_NAME = 'property-portal'
         CONTAINER_NAME = 'property-portal-container'
+        MYSQL_CONTAINER = 'property-portal-mysql'
         APP_PORT = '8080'
     }
 
@@ -31,32 +32,42 @@ pipeline {
 
         stage('Docker Environment Check') {
             steps {
-                powershell '''
-                    Write-Host "========================================"
-                    Write-Host " Docker Environment Check"
-                    Write-Host "========================================"
-
+                bat '''
                     docker --version
-
-                    Write-Host ""
-                    Write-Host "Checking Docker daemon..."
-
                     docker info
-
-                    if ($LASTEXITCODE -ne 0) {
-                        Write-Error "Docker daemon is not accessible."
-                        exit 1
-                    }
-
-                    Write-Host ""
-                    Write-Host "Docker environment is ready."
                 '''
+            }
+        }
+
+        stage('Start Docker MySQL') {
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'mysql-db-password',
+                        variable: 'MYSQL_ROOT_PASSWORD'
+                    )
+                ]) {
+                    bat '''
+                        echo Starting Docker MySQL...
+
+                        set MYSQL_ROOT_PASSWORD=%MYSQL_ROOT_PASSWORD%
+
+                        docker compose up -d mysql
+
+                        echo Waiting for MySQL to become healthy...
+
+                        powershell -NoProfile -Command ^
+                          "$timeout = 120; $elapsed = 0; while ($elapsed -lt $timeout) { $status = docker inspect -f '{{.State.Health.Status}}' property-portal-mysql 2>$null; Write-Host ('MySQL health: ' + $status); if ($status -eq 'healthy') { exit 0 }; Start-Sleep -Seconds 5; $elapsed += 5 }; Write-Error 'MySQL did not become healthy'; exit 1"
+                    '''
+                }
             }
         }
 
         stage('Build') {
             steps {
-                bat 'mvn -f backend/pom.xml clean compile'
+                bat '''
+                    mvn -f backend/pom.xml clean compile
+                '''
             }
         }
 
@@ -68,55 +79,43 @@ pipeline {
                         variable: 'DB_PASSWORD'
                     )
                 ]) {
-                    bat 'mvn -f backend/pom.xml test'
+                    bat '''
+                        echo Running tests against Docker MySQL...
+
+                        set DB_HOST=localhost
+                        set DB_USERNAME=root
+                        set DB_PASSWORD=%DB_PASSWORD%
+
+                        mvn -f backend/pom.xml test
+                    '''
                 }
             }
         }
 
         stage('Package') {
             steps {
-                bat 'mvn -f backend/pom.xml package -DskipTests'
+                bat '''
+                    mvn -f backend/pom.xml package -DskipTests
+                '''
             }
         }
 
-        stage('Archive') {
+        stage('Archive Artifact') {
             steps {
-                archiveArtifacts(
-                    artifacts: 'backend/target/*.jar',
-                    fingerprint: true
-                )
+                archiveArtifacts artifacts: 'backend/target/*.jar',
+                             fingerprint: true
             }
         }
 
         stage('Docker Build') {
             steps {
-                powershell '''
-                    Write-Host "========================================"
-                    Write-Host " Docker Image Build"
-                    Write-Host "========================================"
+                script {
+                    def imageTag = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
-                    $imageTag = "$env:IMAGE_NAME`:$env:BUILD_NUMBER"
-
-                    Write-Host "Building Docker image:"
-                    Write-Host $imageTag
-
-                    docker build `
-                        -f docker/Dockerfile `
-                        -t $imageTag `
-                        .
-
-                    if ($LASTEXITCODE -ne 0) {
-                        Write-Error "Docker image build failed."
-                        exit 1
-                    }
-
-                    Write-Host ""
-                    Write-Host "Docker image built successfully."
-
-                    Write-Host ""
-                    Write-Host "Image details:"
-                    docker images $env:IMAGE_NAME
-                '''
+                    bat """
+                        docker build -f docker/Dockerfile -t ${imageTag} .
+                    """
+                }
             }
         }
 
@@ -128,181 +127,85 @@ pipeline {
                         variable: 'DB_PASSWORD'
                     )
                 ]) {
-                    powershell '''
-                        Write-Host "========================================"
-                        Write-Host " Docker Container Deployment"
-                        Write-Host "========================================"
+                    script {
+                        def imageTag = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
-                        $imageTag = "$env:IMAGE_NAME`:$env:BUILD_NUMBER"
+                        bat """
+                            echo Stopping old application container...
 
-                        Write-Host "Image:"
-                        Write-Host $imageTag
+                            docker rm -f ${env.CONTAINER_NAME} 2>nul || exit /b 0
 
-                        Write-Host ""
-                        Write-Host "Container:"
-                        Write-Host $env:CONTAINER_NAME
+                            echo Starting application container...
 
-                        Write-Host ""
-                        Write-Host "Host Port:"
-                        Write-Host $env:DOCKER_PORT
+                            docker run -d ^
+                              --name ${env.CONTAINER_NAME} ^
+                              --network property-listing-portal_default ^
+                              -p ${params.DOCKER_PORT}:${env.APP_PORT} ^
+                              -e DB_HOST=mysql ^
+                              -e DB_USERNAME=root ^
+                              -e DB_PASSWORD=%DB_PASSWORD% ^
+                              ${imageTag}
 
-                        Write-Host ""
-                        Write-Host "Stopping previous container if it exists..."
+                            echo Waiting for application startup...
 
-                        docker stop $env:CONTAINER_NAME 2>$null
+                            powershell -NoProfile -Command "Start-Sleep -Seconds 15"
 
-                        Write-Host "Removing previous container if it exists..."
+                            docker ps -a --filter "name=${env.CONTAINER_NAME}"
 
-                        docker rm $env:CONTAINER_NAME 2>$null
-
-                        Write-Host ""
-                        Write-Host "Starting fresh Docker container..."
-
-                        docker run -d `
-                            --name $env:CONTAINER_NAME `
-                            -p "$env:DOCKER_PORT`:$env:APP_PORT" `
-                            --add-host=host.docker.internal:host-gateway `
-                            -e "DB_HOST=host.docker.internal" `
-                            -e "DB_PASSWORD=$env:DB_PASSWORD" `
-                            $imageTag
-
-                        if ($LASTEXITCODE -ne 0) {
-                            Write-Error "Docker container failed to start."
-                            exit 1
-                        }
-
-                        Write-Host ""
-                        Write-Host "Docker container started successfully."
-
-                        Write-Host ""
-                        Write-Host "Waiting for Spring Boot application..."
-
-                        Start-Sleep -Seconds 15
-
-                        Write-Host ""
-                        Write-Host "Container status:"
-                        docker ps -a --filter "name=$env:CONTAINER_NAME"
-
-                        Write-Host ""
-                        Write-Host "Recent container logs:"
-                        docker logs --tail 50 $env:CONTAINER_NAME
-                    '''
+                            docker logs ${env.CONTAINER_NAME}
+                        """
+                    }
                 }
             }
         }
 
         stage('Docker Health Check') {
             steps {
-                powershell '''
-                    Write-Host "========================================"
-                    Write-Host " Docker Deployment Health Check"
-                    Write-Host "========================================"
+                script {
+                    bat """
+                        echo Checking application health...
 
-                    $url = "http://localhost:$env:DOCKER_PORT/api/properties"
+                        powershell -NoProfile -Command ^
+                          "\$url = 'http://localhost:${params.DOCKER_PORT}/api/properties'; \$success = \$false; for (\$i = 1; \$i -le 12; \$i++) { try { \$response = Invoke-WebRequest -Uri \$url -UseBasicParsing -TimeoutSec 5; Write-Host ('Attempt ' + \$i + ': HTTP ' + \$response.StatusCode); if (\$response.StatusCode -eq 200) { \$success = \$true; break } } catch { Write-Host ('Attempt ' + \$i + ': application not ready') }; Start-Sleep -Seconds 5 }; if (-not \$success) { Write-Error 'Docker deployment health check failed'; exit 1 }"
 
-                    Write-Host "Health Check URL:"
-                    Write-Host $url
-
-                    $healthy = $false
-
-                    for ($i = 1; $i -le 6; $i++) {
-
-                        Write-Host ""
-                        Write-Host "Health check attempt $i of 6..."
-
-                        try {
-
-                            $response = Invoke-WebRequest `
-                                -Uri $url `
-                                -UseBasicParsing `
-                                -TimeoutSec 10
-
-                            Write-Host "HTTP Status: $($response.StatusCode)"
-
-                            if ($response.StatusCode -eq 200) {
-                                $healthy = $true
-                                Write-Host ""
-                                Write-Host "Docker deployment health check PASSED."
-                                break
-                            }
-
-                        }
-                        catch {
-
-                            Write-Host "Application not ready yet."
-                            Write-Host $_.Exception.Message
-                        }
-
-                        if ($i -lt 6) {
-                            Write-Host "Waiting 5 seconds..."
-                            Start-Sleep -Seconds 5
-                        }
-                    }
-
-                    if (-not $healthy) {
-                        Write-Error "Docker deployment health check FAILED."
-
-                        Write-Host ""
-                        Write-Host "Container logs:"
-                        docker logs $env:CONTAINER_NAME
-
-                        exit 1
-                    }
-                '''
+                        echo Docker deployment health check passed.
+                    """
+                }
             }
         }
 
         stage('Docker Deployment Verification') {
             steps {
-                powershell '''
-                    Write-Host "========================================"
-                    Write-Host " Docker Deployment Verification"
-                    Write-Host "========================================"
-
-                    Write-Host ""
-                    Write-Host "Running containers:"
+                bat '''
+                    echo ===== Docker Containers =====
                     docker ps
 
-                    Write-Host ""
-                    Write-Host "Deployed image:"
-                    docker inspect `
-                        --format='{{.Config.Image}}' `
-                        $env:CONTAINER_NAME
+                    echo ===== Application Container =====
+                    docker inspect property-portal-container --format "{{.Config.Image}}"
 
-                    Write-Host ""
-                    Write-Host "Container port mapping:"
-                    docker port $env:CONTAINER_NAME
-
-                    Write-Host ""
-                    Write-Host "Docker deployment verification completed."
+                    echo ===== Port Mapping =====
+                    docker port property-portal-container
                 '''
             }
         }
     }
 
     post {
-
         success {
-            echo "========================================"
-            echo " WEEK 12 CONTINUOUS DELIVERY PASSED"
-            echo "========================================"
+            echo "DOCKER CONTINUOUS DELIVERY SUCCESS"
+            echo "Application deployed successfully."
             echo "Environment: ${params.DEPLOY_ENV}"
+            echo "Application URL: http://localhost:${params.DOCKER_PORT}/api/properties"
             echo "Docker Image: ${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
-            echo "Container: ${env.CONTAINER_NAME}"
-            echo "Host Port: ${params.DOCKER_PORT}"
-            echo "Health Check: PASSED"
-            echo "Deployment completed successfully."
         }
 
         failure {
-            echo "========================================"
-            echo " BUILD / DEPLOYMENT FAILED"
-            echo "========================================"
-            echo "Check the failed Jenkins stage and console output."
+            echo "DOCKER CONTINUOUS DELIVERY FAILED"
+            echo "Check the Jenkins console output for the failed stage."
         }
 
         always {
-            echo "Jenkins pipeline execution completed."
+            echo "Jenkins Docker pipeline completed."
         }
     }
 }
