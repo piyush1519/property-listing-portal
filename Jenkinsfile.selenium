@@ -12,16 +12,49 @@ pipeline {
         stage('Environment Check') {
             steps {
                 powershell '''
-                    Write-Host "Checking Selenium environment..."
+                    Write-Host "=== Environment Check ==="
 
-                    if (Test-Path "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe") {
-                        Write-Host "Chrome found."
-                    } else {
+                    Write-Host "Checking Chrome..."
+                    if (!(Test-Path "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")) {
                         Write-Error "Chrome not found."
                     }
 
                     java -version
                     mvn -version
+                '''
+            }
+        }
+
+        stage('Verify Application') {
+            steps {
+                powershell '''
+                    Write-Host "=== Verifying Application Services ==="
+
+                    Write-Host "Checking Frontend: http://localhost:5500"
+                    $frontend = Invoke-WebRequest `
+                        -Uri "http://localhost:5500" `
+                        -UseBasicParsing `
+                        -TimeoutSec 10
+
+                    if ($frontend.StatusCode -ne 200) {
+                        Write-Error "Frontend is not available."
+                    }
+
+                    Write-Host "Frontend HTTP Status: $($frontend.StatusCode)"
+
+                    Write-Host "Checking Backend: http://localhost:8080/api/properties"
+                    $backend = Invoke-WebRequest `
+                        -Uri "http://localhost:8080/api/properties" `
+                        -UseBasicParsing `
+                        -TimeoutSec 10
+
+                    if ($backend.StatusCode -ne 200) {
+                        Write-Error "Backend is not available."
+                    }
+
+                    Write-Host "Backend HTTP Status: $($backend.StatusCode)"
+
+                    Write-Host "Application verification passed."
                 '''
             }
         }
@@ -43,11 +76,11 @@ pipeline {
 
     post {
         success {
-            echo 'Selenium test pipeline completed successfully.'
+            echo 'QUALITY GATE PASSED - Selenium tests passed.'
         }
 
         failure {
-            echo 'Selenium test pipeline failed.'
+            echo 'QUALITY GATE FAILED - Pipeline stopped because a required stage failed.'
         }
     }
 }
