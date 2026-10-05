@@ -1,4 +1,5 @@
 pipeline {
+
     agent any
 
     options {
@@ -58,6 +59,7 @@ pipeline {
                         variable: 'MYSQL_ROOT_PASSWORD'
                     )
                 ]) {
+
                     bat '''
                         echo ==========================================
                         echo Starting Docker MySQL
@@ -100,6 +102,7 @@ pipeline {
                         variable: 'DB_PASSWORD'
                     )
                 ]) {
+
                     bat '''
                         echo ==========================================
                         echo Running Tests
@@ -153,7 +156,9 @@ pipeline {
         stage('Docker Build') {
             steps {
                 script {
-                    def imageTag = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+
+                    def imageTag =
+                        "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
                     bat """
                         echo ==========================================
@@ -179,6 +184,7 @@ pipeline {
         stage('Docker Registry Tag') {
             steps {
                 script {
+
                     def localImage =
                         "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
@@ -209,6 +215,7 @@ pipeline {
 
         stage('Docker Registry Push') {
             steps {
+
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'dockerhub-credentials',
@@ -216,7 +223,9 @@ pipeline {
                         passwordVariable: 'DOCKER_PASSWORD'
                     )
                 ]) {
+
                     script {
+
                         def registryImage =
                             "${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
@@ -254,13 +263,16 @@ pipeline {
 
         stage('Docker Deploy') {
             steps {
+
                 withCredentials([
                     string(
                         credentialsId: 'mysql-db-password',
                         variable: 'DB_PASSWORD'
                     )
                 ]) {
+
                     script {
+
                         def imageTag =
                             "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
@@ -315,6 +327,7 @@ pipeline {
 
         stage('Docker Health Check') {
             steps {
+
                 script {
 
                     def healthCheckScript = '''
@@ -385,6 +398,7 @@ Write-Host 'Docker deployment health check passed.'
 
         stage('Docker Deployment Verification') {
             steps {
+
                 bat """
                     echo ==========================================
                     echo Docker Deployment Verification
@@ -423,6 +437,7 @@ Write-Host 'Docker deployment health check passed.'
     post {
 
         success {
+
             echo "=============================================="
             echo "DOCKER CONTINUOUS DELIVERY SUCCESS"
             echo "=============================================="
@@ -437,6 +452,7 @@ Write-Host 'Docker deployment health check passed.'
         }
 
         failure {
+
             echo "=============================================="
             echo "DOCKER CONTINUOUS DELIVERY FAILED"
             echo "=============================================="
