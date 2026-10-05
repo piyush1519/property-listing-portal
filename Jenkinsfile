@@ -33,10 +33,11 @@ pipeline {
         stage('Docker Environment Check') {
             steps {
                 bat '''
-                    echo ===== Docker Version =====
-                    docker --version
+                    echo ==========================================
+                    echo Docker Environment Check
+                    echo ==========================================
 
-                    echo ===== Docker Info =====
+                    docker --version
                     docker info
                 '''
             }
@@ -51,16 +52,20 @@ pipeline {
                     )
                 ]) {
                     bat '''
-                        echo ===== Starting Docker MySQL =====
+                        echo ==========================================
+                        echo Starting Docker MySQL
+                        echo ==========================================
 
                         set MYSQL_ROOT_PASSWORD=%MYSQL_ROOT_PASSWORD%
 
                         docker compose up -d mysql
 
-                        echo ===== Waiting for MySQL to become healthy =====
+                        echo.
+                        echo Waiting for MySQL to become healthy...
+                        echo.
 
                         powershell -NoProfile -Command ^
-                          "$timeout = 120; $elapsed = 0; while ($elapsed -lt $timeout) { $status = docker inspect -f '{{.State.Health.Status}}' property-portal-mysql 2>$null; Write-Host ('MySQL health: ' + $status); if ($status -eq 'healthy') { exit 0 }; Start-Sleep -Seconds 5; $elapsed += 5 }; Write-Error 'MySQL did not become healthy'; exit 1"
+                          "$timeout = 120; $elapsed = 0; while ($elapsed -lt $timeout) { $status = docker inspect -f '{{.State.Health.Status}}' property-portal-mysql 2>$null; Write-Host ('MySQL health: ' + $status); if ($status -eq 'healthy') { exit 0 }; Start-Sleep -Seconds 5; $elapsed += 5 }; Write-Error 'MySQL did not become healthy within 120 seconds'; exit 1"
                     '''
                 }
             }
@@ -69,7 +74,9 @@ pipeline {
         stage('Build') {
             steps {
                 bat '''
-                    echo ===== Maven Build =====
+                    echo ==========================================
+                    echo Maven Build
+                    echo ==========================================
 
                     mvn -f backend/pom.xml clean compile
                 '''
@@ -85,8 +92,15 @@ pipeline {
                     )
                 ]) {
                     bat '''
-                        echo ===== Running Tests =====
-                        echo Tests will use Docker MySQL through localhost:3307
+                        echo ==========================================
+                        echo Running Tests
+                        echo ==========================================
+                        echo.
+                        echo Database:
+                        echo Host = localhost
+                        echo Port = 3307
+                        echo Database = property_portal
+                        echo.
 
                         set DB_HOST=localhost
                         set DB_PORT=3307
@@ -102,7 +116,9 @@ pipeline {
         stage('Package') {
             steps {
                 bat '''
-                    echo ===== Packaging Application =====
+                    echo ==========================================
+                    echo Packaging Application
+                    echo ==========================================
 
                     mvn -f backend/pom.xml package -DskipTests
                 '''
@@ -111,7 +127,9 @@ pipeline {
 
         stage('Archive Artifact') {
             steps {
-                echo '===== Archiving JAR ====='
+                echo '=========================================='
+                echo 'Archiving JAR Artifact'
+                echo '=========================================='
 
                 archiveArtifacts artifacts: 'backend/target/*.jar',
                                  fingerprint: true
@@ -124,7 +142,11 @@ pipeline {
                     def imageTag = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
                     bat """
-                        echo ===== Building Docker Image =====
+                        echo ==========================================
+                        echo Building Docker Image
+                        echo ==========================================
+                        echo Image: ${imageTag}
+                        echo.
 
                         docker build ^
                           -f docker/Dockerfile ^
@@ -147,11 +169,21 @@ pipeline {
                         def imageTag = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
                         bat """
-                            echo ===== Stopping Previous Application Container =====
+                            echo ==========================================
+                            echo Docker Deployment
+                            echo ==========================================
+                            echo Image: ${imageTag}
+                            echo Container: ${env.CONTAINER_NAME}
+                            echo Port: ${params.DOCKER_PORT}
+                            echo.
+
+                            echo Stopping old application container...
 
                             docker rm -f ${env.CONTAINER_NAME} 2>nul || exit /b 0
 
-                            echo ===== Starting New Application Container =====
+                            echo.
+                            echo Starting new application container...
+                            echo.
 
                             docker run -d ^
                               --name ${env.CONTAINER_NAME} ^
@@ -163,15 +195,21 @@ pipeline {
                               -e DB_PASSWORD=%DB_PASSWORD% ^
                               ${imageTag}
 
-                            echo ===== Waiting For Application Startup =====
+                            echo.
+                            echo Waiting for application startup...
+                            echo.
 
                             powershell -NoProfile -Command "Start-Sleep -Seconds 15"
 
-                            echo ===== Container Status =====
+                            echo.
+                            echo Container Status:
+                            echo.
 
                             docker ps -a --filter "name=${env.CONTAINER_NAME}"
 
-                            echo ===== Application Logs =====
+                            echo.
+                            echo Application Logs:
+                            echo.
 
                             docker logs ${env.CONTAINER_NAME}
                         """
@@ -183,38 +221,86 @@ pipeline {
         stage('Docker Health Check') {
             steps {
                 script {
-                    bat """
-                        echo ===== Checking Application Health =====
 
-                        powershell -NoProfile -Command ^
-                          "\\$url = 'http://localhost:${params.DOCKER_PORT}/api/properties'; \\$success = \\$false; for (\\$i = 1; \\$i -le 12; \\$i++) { try { \\$response = Invoke-WebRequest -Uri \\$url -UseBasicParsing -TimeoutSec 5; Write-Host ('Attempt ' + \\$i + ': HTTP ' + \\$response.StatusCode); if (\\$response.StatusCode -eq 200) { \\$success = \\$true; break } } catch { Write-Host ('Attempt ' + \\$i + ': application not ready') }; Start-Sleep -Seconds 5 }; if (-not \\$success) { Write-Error 'Docker deployment health check failed'; exit 1 }"
+                    writeFile file: 'health-check.ps1', text: """
+\$url = 'http://localhost:${params.DOCKER_PORT}/api/properties'
+\$success = \$false
 
-                        echo ===== Docker Deployment Health Check Passed =====
-                    """
+Write-Host '=========================================='
+Write-Host 'Docker Application Health Check'
+Write-Host '=========================================='
+Write-Host "URL: \$url"
+Write-Host ''
+
+for (\$i = 1; \$i -le 12; \$i++) {
+
+    try {
+        \$response = Invoke-WebRequest `
+            -Uri \$url `
+            -UseBasicParsing `
+            -TimeoutSec 5
+
+        Write-Host "Attempt \$i : HTTP \$([\$response.StatusCode])"
+
+        if (\$response.StatusCode -eq 200) {
+            \$success = \$true
+            break
+        }
+    }
+    catch {
+        Write-Host "Attempt \$i : application not ready"
+    }
+
+    Start-Sleep -Seconds 5
+}
+
+if (-not \$success) {
+    Write-Error 'Docker deployment health check failed'
+    exit 1
+}
+
+Write-Host ''
+Write-Host 'Docker deployment health check passed.'
+"""
+
+                    bat '''
+                        powershell -NoProfile -ExecutionPolicy Bypass -File health-check.ps1
+                    '''
                 }
             }
         }
 
         stage('Docker Deployment Verification') {
             steps {
-                bat '''
+                bat """
+                    echo ==========================================
+                    echo Docker Deployment Verification
+                    echo ==========================================
+
+                    echo.
                     echo ===== Docker Containers =====
+                    echo.
 
                     docker ps
 
+                    echo.
                     echo ===== Application Container =====
+                    echo.
 
                     docker inspect property-portal-container --format "{{.Config.Image}}"
 
+                    echo.
                     echo ===== Port Mapping =====
+                    echo.
 
                     docker port property-portal-container
 
+                    echo.
                     echo ===== Application API =====
+                    echo.
 
-                    powershell -NoProfile -Command ^
-                      "Invoke-WebRequest -Uri 'http://localhost:8090/api/properties' -UseBasicParsing | Select-Object StatusCode"
-                '''
+                    powershell -NoProfile -Command "Invoke-WebRequest -Uri 'http://localhost:${params.DOCKER_PORT}/api/properties' -UseBasicParsing | Select-Object StatusCode"
+                """
             }
         }
     }
@@ -229,6 +315,7 @@ pipeline {
             echo "Environment: ${params.DEPLOY_ENV}"
             echo "Application URL: http://localhost:${params.DOCKER_PORT}/api/properties"
             echo "Docker Image: ${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+            echo "=============================================="
         }
 
         failure {
@@ -236,6 +323,7 @@ pipeline {
             echo "DOCKER CONTINUOUS DELIVERY FAILED"
             echo "=============================================="
             echo "Check the Jenkins console output for the failed stage."
+            echo "=============================================="
         }
 
         always {
