@@ -1,474 +1,947 @@
 pipeline {
 
-    agent any
-
-    options {
-        skipDefaultCheckout(true)
-    }
-
-    parameters {
-        string(
-            name: 'DEPLOY_ENV',
-            defaultValue: 'docker',
-            description: 'Deployment environment'
-        )
-
-        string(
-            name: 'DOCKER_PORT',
-            defaultValue: '8090',
-            description: 'Host port for Docker application'
-        )
-    }
-
-    environment {
-        IMAGE_NAME = 'property-portal'
-        DOCKERHUB_USERNAME = 'piyushnimbalkar15'
-        CONTAINER_NAME = 'property-portal-container'
-        MYSQL_CONTAINER = 'property-portal-mysql'
-        APP_PORT = '8080'
-    }
-
-    stages {
-
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Docker Environment Check') {
-            steps {
-                bat '''
-                    echo ==========================================
-                    echo Docker Environment Check
-                    echo ==========================================
-
-                    docker --version
-                    docker info
-                '''
-            }
-        }
-
-        stage('Start Docker MySQL') {
-            steps {
-
-                withCredentials([
-                    string(
-                        credentialsId: 'mysql-db-password',
-                        variable: 'MYSQL_ROOT_PASSWORD'
-                    )
-                ]) {
-
-                    bat '''
-                        echo ==========================================
-                        echo Starting Docker MySQL
-                        echo ==========================================
-
-                        set MYSQL_ROOT_PASSWORD=%MYSQL_ROOT_PASSWORD%
-
-                        docker compose -f docker-compose.yml up -d mysql
-
-                        if errorlevel 1 exit /b 1
-
-                        echo.
-                        echo Waiting for MySQL to become healthy...
-                        echo.
-
-                        powershell -NoProfile -Command ^
-                          "$timeout = 120; $elapsed = 0; while ($elapsed -lt $timeout) { $status = docker inspect -f '{{.State.Health.Status}}' property-portal-mysql 2>$null; Write-Host ('MySQL health: ' + $status); if ($status -eq 'healthy') { exit 0 }; Start-Sleep -Seconds 5; $elapsed += 5 }; Write-Error 'MySQL did not become healthy within 120 seconds'; exit 1"
-                    '''
-                }
-            }
-        }
-
-        stage('Build') {
-            steps {
-
-                bat '''
-                    echo ==========================================
-                    echo Maven Build
-                    echo ==========================================
-
-                    mvn -f backend/pom.xml clean compile
-
-                    if errorlevel 1 exit /b 1
-                '''
-            }
-        }
-
-        stage('Test') {
-            steps {
-
-                withCredentials([
-                    string(
-                        credentialsId: 'mysql-db-password',
-                        variable: 'DB_PASSWORD'
-                    )
-                ]) {
-
-                    bat '''
-                        echo ==========================================
-                        echo Running Tests
-                        echo ==========================================
 
-                        echo.
-                        echo Database:
-                        echo Host = localhost
-                        echo Port = 3307
-                        echo Database = property_portal
-                        echo.
-
-                        set DB_HOST=localhost
-                        set DB_PORT=3307
-                        set DB_USERNAME=root
-                        set DB_PASSWORD=%DB_PASSWORD%
-
-                        mvn -f backend/pom.xml test
-
-                        if errorlevel 1 exit /b 1
-                    '''
-                }
-            }
-        }
-
-        stage('Package') {
-            steps {
-
-                bat '''
-                    echo ==========================================
-                    echo Packaging Application
-                    echo ==========================================
-
-                    mvn -f backend/pom.xml package -DskipTests
 
-                    if errorlevel 1 exit /b 1
-                '''
-            }
-        }
+    agent any
 
-        stage('Archive Artifact') {
-            steps {
 
-                echo '=========================================='
-                echo 'Archiving JAR Artifact'
-                echo '=========================================='
 
-                archiveArtifacts artifacts: 'backend/target/*.jar',
-                                 fingerprint: true
-            }
-        }
+    options {
 
-        stage('Docker Build') {
-            steps {
+        skipDefaultCheckout(true)
 
-                script {
+    }
 
-                    def imageTag = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
-                    bat """
-                        echo ==========================================
-                        echo Building Docker Image
-                        echo ==========================================
-                        echo Image: ${imageTag}
-                        echo.
 
-                        docker build -f docker/Dockerfile -t ${imageTag} .
+    parameters {
 
-                        if errorlevel 1 exit /b 1
+        string(
 
-                        echo.
-                        echo Docker image built successfully.
-                        echo.
+            name: 'DEPLOY_ENV',
 
-                        docker images ${env.IMAGE_NAME}
-                    """
-                }
-            }
-        }
+            defaultValue: 'docker',
 
-        stage('Docker Registry Tag') {
-            steps {
+            description: 'Deployment environment'
 
-                script {
+        )
 
-                    def localImage = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
-                    def registryImage = "${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
-                    bat """
-                        echo ==========================================
-                        echo Docker Registry Tag
-                        echo ==========================================
-                        echo Local Image: ${localImage}
-                        echo Registry Image: ${registryImage}
-                        echo.
 
-                        docker tag ${localImage} ${registryImage}
+        string(
 
-                        if errorlevel 1 exit /b 1
+            name: 'DOCKER_PORT',
 
-                        echo.
-                        echo Docker image tagged successfully.
-                        echo.
+            defaultValue: '8090',
 
-                        docker images ${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}
-                    """
-                }
-            }
-        }
+            description: 'Host port for Docker application'
 
-        stage('Docker Registry Push') {
-            steps {
+        )
 
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'dockerhub-credentials',
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
-                    )
-                ]) {
+    }
 
-                    script {
 
-                        def registryImage = "${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
-                        bat """
-                            echo ==========================================
-                            echo Docker Registry Push
-                            echo ==========================================
-                            echo Registry Image: ${registryImage}
-                            echo.
+    environment {
 
-                            echo Logging in to Docker Hub...
+        IMAGE_NAME = 'property-portal'
 
-                            echo %DOCKER_PASSWORD% | docker login --username %DOCKER_USERNAME% --password-stdin
+        DOCKERHUB_USERNAME = 'piyushnimbalkar15'
 
-                            if errorlevel 1 exit /b 1
+        CONTAINER_NAME = 'property-portal-container'
 
-                            echo.
-                            echo Docker Hub login successful.
-                            echo.
+        MYSQL_CONTAINER = 'property-portal-mysql'
 
-                            echo Pushing Docker image...
+        APP_PORT = '8080'
 
-                            docker push ${registryImage}
+    }
 
-                            if errorlevel 1 exit /b 1
 
-                            echo.
-                            echo Docker image pushed successfully.
-                            echo Registry Image: ${registryImage}
-                        """
-                    }
-                }
-            }
-        }
 
-        stage('Docker Deploy') {
-            steps {
+    stages {
 
-                withCredentials([
-                    string(
-                        credentialsId: 'mysql-db-password',
-                        variable: 'DB_PASSWORD'
-                    )
-                ]) {
 
-                    script {
 
-                        def imageTag = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+        stage('Checkout') {
 
-                        bat """
+            steps {
 
-                            echo ==========================================
-                            echo Docker Deployment
-                            echo ==========================================
-                            echo Image: ${imageTag}
-                            echo Container: ${env.CONTAINER_NAME}
-                            echo Port: ${params.DOCKER_PORT}
-                            echo.
+                checkout scm
 
-                            echo Stopping old application container...
+            }
 
-                            docker rm -f ${env.CONTAINER_NAME} 2>nul || echo No existing application container found.
+        }
 
-                            echo.
 
-                            echo Starting new application container...
-                            echo.
 
-                            docker run -d --name ${env.CONTAINER_NAME} --network property-listing-portal-pipeline_default -p ${params.DOCKER_PORT}:${env.APP_PORT} -e DB_HOST=mysql -e DB_PORT=3306 -e DB_USERNAME=root -e DB_PASSWORD=%DB_PASSWORD% ${imageTag}
+        stage('Docker Environment Check') {
 
-                            if errorlevel 1 exit /b 1
+            steps {
 
-                            echo.
+                bat '''
 
-                            echo Waiting for application startup...
+                    echo ==========================================
 
-                            powershell -NoProfile -Command "Start-Sleep -Seconds 15"
+                    echo Docker Environment Check
 
-                            echo.
+                    echo ==========================================
 
-                            echo Container Status:
 
-                            docker ps -a --filter "name=${env.CONTAINER_NAME}"
 
-                            echo.
+                    docker --version
 
-                            echo Application Logs:
+                    docker info
 
-                            docker logs ${env.CONTAINER_NAME}
+                '''
 
-                        """
-                    }
-                }
-            }
-        }
+            }
 
-        stage('Docker Health Check') {
-            steps {
+        }
 
-                script {
 
-                    writeFile file: 'health-check.ps1', text: """
 
-\$url = 'http://localhost:${params.DOCKER_PORT}/api/properties'
+        stage('Start Docker MySQL') {
 
-\$success = \$false
+            steps {
+
+
+
+                withCredentials([
+
+                    string(
+
+                        credentialsId: 'mysql-db-password',
+
+                        variable: 'MYSQL_ROOT_PASSWORD'
+
+                    )
+
+                ]) {
+
+
+
+                    bat '''
+
+                        echo ==========================================
+
+                        echo Starting Docker MySQL
+
+                        echo ==========================================
+
+
+
+                        set MYSQL_ROOT_PASSWORD=%MYSQL_ROOT_PASSWORD%
+
+
+
+                        docker compose -f docker-compose.yml up -d mysql
+
+
+
+                        if errorlevel 1 exit /b 1
+
+
+
+                        echo.
+
+                        echo Waiting for MySQL to become healthy...
+
+                        echo.
+
+
+
+                        powershell -NoProfile -Command ^
+
+                          "$timeout = 120; $elapsed = 0; while ($elapsed -lt $timeout) { $status = docker inspect -f '{{.State.Health.Status}}' property-portal-mysql 2>$null; Write-Host ('MySQL health: ' + $status); if ($status -eq 'healthy') { exit 0 }; Start-Sleep -Seconds 5; $elapsed += 5 }; Write-Error 'MySQL did not become healthy within 120 seconds'; exit 1"
+
+                    '''
+
+                }
+
+            }
+
+        }
+
+
+
+        stage('Build') {
+
+            steps {
+
+
+
+                bat '''
+
+                    echo ==========================================
+
+                    echo Maven Build
+
+                    echo ==========================================
+
+
+
+                    mvn -f backend/pom.xml clean compile
+
+
+
+                    if errorlevel 1 exit /b 1
+
+                '''
+
+            }
+
+        }
+
+
+
+        stage('Test') {
+
+            steps {
+
+
+
+                withCredentials([
+
+                    string(
+
+                        credentialsId: 'mysql-db-password',
+
+                        variable: 'DB_PASSWORD'
+
+                    )
+
+                ]) {
+
+
+
+                    bat '''
+
+                        echo ==========================================
+
+                        echo Running Tests
+
+                        echo ==========================================
+
+
+
+                        echo.
+
+                        echo Database:
+
+                        echo Host = localhost
+
+                        echo Port = 3307
+
+                        echo Database = property_portal
+
+                        echo.
+
+
+
+                        set DB_HOST=localhost
+
+                        set DB_PORT=3307
+
+                        set DB_USERNAME=root
+
+                        set DB_PASSWORD=%DB_PASSWORD%
+
+
+
+                        mvn -f backend/pom.xml test
+
+
+
+                        if errorlevel 1 exit /b 1
+
+                    '''
+
+                }
+
+            }
+
+        }
+
+
+
+        stage('Package') {
+
+            steps {
+
+
+
+                bat '''
+
+                    echo ==========================================
+
+                    echo Packaging Application
+
+                    echo ==========================================
+
+
+
+                    mvn -f backend/pom.xml package -DskipTests
+
+
+
+                    if errorlevel 1 exit /b 1
+
+                '''
+
+            }
+
+        }
+
+
+
+        stage('Archive Artifact') {
+
+            steps {
+
+
+
+                echo '=========================================='
+
+                echo 'Archiving JAR Artifact'
+
+                echo '=========================================='
+
+
+
+                archiveArtifacts artifacts: 'backend/target/*.jar',
+
+                                 fingerprint: true
+
+            }
+
+        }
+
+
+
+        stage('Docker Build') {
+
+            steps {
+
+
+
+                script {
+
+
+
+                    def imageTag = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+
+
+
+                    bat """
+
+                        echo ==========================================
+
+                        echo Building Docker Image
+
+                        echo ==========================================
+
+                        echo Image: ${imageTag}
+
+                        echo.
+
+
+
+                        docker build -f docker/Dockerfile -t ${imageTag} .
+
+
+
+                        if errorlevel 1 exit /b 1
+
+
+
+                        echo.
+
+                        echo Docker image built successfully.
+
+                        echo.
+
+
+
+                        docker images ${env.IMAGE_NAME}
+
+                    """
+
+                }
+
+            }
+
+        }
+
+
+
+        stage('Docker Registry Tag') {
+
+            steps {
+
+
+
+                script {
+
+
+
+                    def localImage = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+
+                    def registryImage = "${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+
+
+
+                    bat """
+
+                        echo ==========================================
+
+                        echo Docker Registry Tag
+
+                        echo ==========================================
+
+                        echo Local Image: ${localImage}
+
+                        echo Registry Image: ${registryImage}
+
+                        echo.
+
+
+
+                        docker tag ${localImage} ${registryImage}
+
+
+
+                        if errorlevel 1 exit /b 1
+
+
+
+                        echo.
+
+                        echo Docker image tagged successfully.
+
+                        echo.
+
+
+
+                        docker images ${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}
+
+                    """
+
+                }
+
+            }
+
+        }
+
+
+
+        stage('Docker Registry Push') {
+
+            steps {
+
+
+
+                withCredentials([
+
+                    usernamePassword(
+
+                        credentialsId: 'dockerhub-credentials',
+
+                        usernameVariable: 'DOCKER_USERNAME',
+
+                        passwordVariable: 'DOCKER_PASSWORD'
+
+                    )
+
+                ]) {
+
+
+
+                    script {
+
+
+
+                        def registryImage = "${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+
+
+
+                        bat """
+
+                            echo ==========================================
+
+                            echo Docker Registry Push
+
+                            echo ==========================================
+
+                            echo Registry Image: ${registryImage}
+
+                            echo.
+
+
+
+                            echo Logging in to Docker Hub...
+
+
+
+                            echo %DOCKER_PASSWORD% | docker login --username %DOCKER_USERNAME% --password-stdin
+
+
+
+                            if errorlevel 1 exit /b 1
+
+
+
+                            echo.
+
+                            echo Docker Hub login successful.
+
+                            echo.
+
+
+
+                            echo Pushing Docker image...
+
+
+
+                            docker push ${registryImage}
+
+
+
+                            if errorlevel 1 exit /b 1
+
+
+
+                            echo.
+
+                            echo Docker image pushed successfully.
+
+                            echo Registry Image: ${registryImage}
+
+                        """
+
+                    }
+
+                }
+
+            }
+
+        }
+
+
+
+        stage('Docker Deploy') {
+
+            steps {
+
+
+
+                withCredentials([
+
+                    string(
+
+                        credentialsId: 'mysql-db-password',
+
+                        variable: 'DB_PASSWORD'
+
+                    )
+
+                ]) {
+
+
+
+                    script {
+
+
+
+                        def imageTag = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+
+
+
+                        bat """
+
+
+
+                            echo ==========================================
+
+                            echo Docker Deployment
+
+                            echo ==========================================
+
+                            echo Image: ${imageTag}
+
+                            echo Container: ${env.CONTAINER_NAME}
+
+                            echo Port: ${params.DOCKER_PORT}
+
+                            echo.
+
+
+
+                            echo Stopping old application container...
+
+
+
+                            docker rm -f ${env.CONTAINER_NAME} 2>nul || echo No existing application container found.
+
+
+
+                            echo.
+
+
+
+                            echo Starting new application container...
+
+                            echo.
+
+
+
+                            docker run -d --name ${env.CONTAINER_NAME} --network property-listing-portal-pipeline_default -p ${params.DOCKER_PORT}:${env.APP_PORT} -e DB_HOST=mysql -e DB_PORT=3306 -e DB_USERNAME=root -e DB_PASSWORD=%DB_PASSWORD% ${imageTag}
+
+
+
+                            if errorlevel 1 exit /b 1
+
+
+
+                            echo.
+
+
+
+                            echo Waiting for application startup...
+
+
+
+                            powershell -NoProfile -Command "Start-Sleep -Seconds 15"
+
+
+
+                            echo.
+
+
+
+                            echo Container Status:
+
+
+
+                            docker ps -a --filter "name=${env.CONTAINER_NAME}"
+
+
+
+                            echo.
+
+
+
+                            echo Application Logs:
+
+
+
+                            docker logs ${env.CONTAINER_NAME}
+
+
+
+                        """
+
+                    }
+
+                }
+
+            }
+
+        }
+
+
+
+        stage('Docker Health Check') {
+
+            steps {
+
+
+
+                script {
+
+
+
+                    writeFile file: 'health-check.ps1', text: """
+
+
+
+\\$url = 'http://localhost:${params.DOCKER_PORT}/api/properties'
+
+
+
+\\$success = \\$false
+
+
 
 Write-Host '=========================================='
+
 Write-Host 'Docker Application Health Check'
+
 Write-Host '=========================================='
 
-Write-Host "URL: \$url"
+
+
+Write-Host "URL: \\$url"
+
+
 
 Write-Host ''
 
-for (\$i = 1; \$i -le 12; \$i++) {
 
-    try {
 
-        \$response = Invoke-WebRequest `
-            -Uri \$url `
-            -UseBasicParsing `
-            -TimeoutSec 5
+for (\\$i = 1; \\$i -le 12; \\$i++) {
 
-        \$statusCode = \$response.StatusCode
 
-        Write-Host "Attempt \$i : HTTP \$statusCode"
 
-        if (\$statusCode -eq 200) {
+    try {
 
-            \$success = \$true
 
-            break
-        }
-    }
 
-    catch {
+        \\$response = Invoke-WebRequest \`
 
-        Write-Host "Attempt \$i : application not ready"
-    }
+            -Uri \\$url \`
 
-    Start-Sleep -Seconds 5
+            -UseBasicParsing \`
+
+            -TimeoutSec 5
+
+
+
+        \\$statusCode = \\$response.StatusCode
+
+
+
+        Write-Host "Attempt \\$i : HTTP \\$statusCode"
+
+
+
+        if (\\$statusCode -eq 200) {
+
+
+
+            \\$success = \\$true
+
+
+
+            break
+
+        }
+
+    }
+
+
+
+    catch {
+
+
+
+        Write-Host "Attempt \\$i : application not ready"
+
+    }
+
+
+
+    Start-Sleep -Seconds 5
+
 }
 
-if (-not \$success) {
 
-    Write-Error 'Docker deployment health check failed'
 
-    exit 1
+if (-not \\$success) {
+
+
+
+    Write-Error 'Docker deployment health check failed'
+
+
+
+    exit 1
+
 }
+
+
 
 Write-Host ''
+
+
 
 Write-Host 'Docker deployment health check passed.'
 
+
+
 """
 
-                    bat '''
-                        powershell -NoProfile -ExecutionPolicy Bypass -File health-check.ps1
-                    '''
-                }
-            }
-        }
 
-        stage('Docker Deployment Verification') {
-            steps {
 
-                bat """
+                    bat '''
 
-                    echo ==========================================
-                    echo Docker Deployment Verification
-                    echo ==========================================
+                        powershell -NoProfile -ExecutionPolicy Bypass -File health-check.ps1
 
-                    echo.
+                    '''
 
-                    echo ===== Docker Containers =====
+                }
 
-                    echo.
+            }
 
-                    docker ps
+        }
 
-                    echo.
 
-                    echo ===== Application Container =====
 
-                    echo.
+        stage('Docker Deployment Verification') {
 
-                    docker inspect property-portal-container --format "{{.Config.Image}}"
+            steps {
 
-                    echo.
 
-                    echo ===== Port Mapping =====
 
-                    echo.
+                bat """
 
-                    docker port property-portal-container
 
-                    echo.
 
-                    echo ===== Application API =====
+                    echo ==========================================
 
-                    echo.
+                    echo Docker Deployment Verification
 
-                    powershell -NoProfile -Command "Invoke-WebRequest -Uri 'http://localhost:${params.DOCKER_PORT}/api/properties' -UseBasicParsing | Select-Object StatusCode"
+                    echo ==========================================
 
-                """
-            }
-        }
-    }
 
-    post {
 
-        success {
+                    echo.
 
-            echo "=============================================="
-            echo "DOCKER CONTINUOUS DELIVERY SUCCESS"
-            echo "=============================================="
 
-            echo "Application deployed successfully."
-            echo "Environment: ${params.DEPLOY_ENV}"
-            echo "Application URL: http://localhost:${params.DOCKER_PORT}/api/properties"
-            echo "Docker Image: ${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
-            echo "Registry Image: ${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
-            echo "=============================================="
-        }
+                    echo ===== Docker Containers =====
 
-        failure {
 
-            echo "=============================================="
-            echo "DOCKER CONTINUOUS DELIVERY FAILED"
-            echo "=============================================="
 
-            echo "Check the Jenkins console output for the failed stage."
+                    echo.
 
-            echo "=============================================="
-        }
 
-        always {
 
-            echo "Jenkins Docker pipeline completed."
-        }
-    }
+                    docker ps
+
+
+
+                    echo.
+
+
+
+                    echo ===== Application Container =====
+
+
+
+                    echo.
+
+
+
+                    docker inspect property-portal-container --format "{{.Config.Image}}"
+
+
+
+                    echo.
+
+
+
+                    echo ===== Port Mapping =====
+
+
+
+                    echo.
+
+
+
+                    docker port property-portal-container
+
+
+
+                    echo.
+
+
+
+                    echo ===== Application API =====
+
+
+
+                    echo.
+
+
+
+                    powershell -NoProfile -Command "Invoke-WebRequest -Uri 'http://localhost:${params.DOCKER_PORT}/api/properties' -UseBasicParsing | Select-Object StatusCode"
+
+
+
+                """
+
+            }
+
+        }
+
+    }
+
+
+
+    post {
+
+
+
+        success {
+
+
+
+            echo "=============================================="
+
+            echo "DOCKER CONTINUOUS DELIVERY SUCCESS"
+
+            echo "=============================================="
+
+
+
+            echo "Application deployed successfully."
+
+            echo "Environment: ${params.DEPLOY_ENV}"
+
+            echo "Application URL: http://localhost:${params.DOCKER_PORT}/api/properties"
+
+            echo "Docker Image: ${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+
+            echo "Registry Image: ${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+
+
+
+            echo "=============================================="
+
+        }
+
+
+
+        failure {
+
+
+
+            echo "=============================================="
+
+            echo "DOCKER CONTINUOUS DELIVERY FAILED"
+
+            echo "=============================================="
+
+
+
+            echo "Check the Jenkins console output for the failed stage."
+
+
+
+            echo "=============================================="
+
+        }
+
+
+
+        always {
+
+
+
+            echo "Jenkins Docker pipeline completed."
+
+        }
+
+    }
+
 }
