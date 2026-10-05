@@ -1,7 +1,13 @@
 pipeline {
+
     agent any
 
+    options {
+        skipDefaultCheckout(true)
+    }
+
     parameters {
+
         string(
             name: 'DEPLOY_ENV',
             defaultValue: 'docker',
@@ -16,6 +22,7 @@ pipeline {
     }
 
     environment {
+
         IMAGE_NAME = 'property-portal'
         CONTAINER_NAME = 'property-portal-container'
         MYSQL_CONTAINER = 'property-portal-mysql'
@@ -45,12 +52,14 @@ pipeline {
 
         stage('Start Docker MySQL') {
             steps {
+
                 withCredentials([
                     string(
                         credentialsId: 'mysql-db-password',
                         variable: 'MYSQL_ROOT_PASSWORD'
                     )
                 ]) {
+
                     bat '''
                         echo ==========================================
                         echo Starting Docker MySQL
@@ -58,7 +67,9 @@ pipeline {
 
                         set MYSQL_ROOT_PASSWORD=%MYSQL_ROOT_PASSWORD%
 
-                        docker compose up -d mysql
+                        docker compose -f docker-compose.yml up -d mysql
+
+                        if errorlevel 1 exit /b 1
 
                         echo.
                         echo Waiting for MySQL to become healthy...
@@ -85,16 +96,19 @@ pipeline {
 
         stage('Test') {
             steps {
+
                 withCredentials([
                     string(
                         credentialsId: 'mysql-db-password',
                         variable: 'DB_PASSWORD'
                     )
                 ]) {
+
                     bat '''
                         echo ==========================================
                         echo Running Tests
                         echo ==========================================
+
                         echo.
                         echo Database:
                         echo Host = localhost
@@ -127,6 +141,7 @@ pipeline {
 
         stage('Archive Artifact') {
             steps {
+
                 echo '=========================================='
                 echo 'Archiving JAR Artifact'
                 echo '=========================================='
@@ -138,7 +153,9 @@ pipeline {
 
         stage('Docker Build') {
             steps {
+
                 script {
+
                     def imageTag = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
                     bat """
@@ -159,16 +176,21 @@ pipeline {
 
         stage('Docker Deploy') {
             steps {
+
                 withCredentials([
                     string(
                         credentialsId: 'mysql-db-password',
                         variable: 'DB_PASSWORD'
                     )
                 ]) {
+
                     script {
-                        def imageTag = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+
+                        def imageTag =
+                            "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
                         bat """
+
                             echo ==========================================
                             echo Docker Deployment
                             echo ==========================================
@@ -220,9 +242,11 @@ pipeline {
 
         stage('Docker Health Check') {
             steps {
+
                 script {
 
                     writeFile file: 'health-check.ps1', text: """
+
 \$url = 'http://localhost:${params.DOCKER_PORT}/api/properties'
 \$success = \$false
 
@@ -235,19 +259,24 @@ Write-Host ''
 for (\$i = 1; \$i -le 12; \$i++) {
 
     try {
+
         \$response = Invoke-WebRequest `
             -Uri \$url `
             -UseBasicParsing `
             -TimeoutSec 5
 
-        Write-Host "Attempt \$i : HTTP \$([\$response.StatusCode])"
+        \$statusCode = \$response.StatusCode
 
-        if (\$response.StatusCode -eq 200) {
+        Write-Host "Attempt \$i : HTTP \$statusCode"
+
+        if (\$statusCode -eq 200) {
             \$success = \$true
             break
         }
     }
+
     catch {
+
         Write-Host "Attempt \$i : application not ready"
     }
 
@@ -255,7 +284,9 @@ for (\$i = 1; \$i -le 12; \$i++) {
 }
 
 if (-not \$success) {
+
     Write-Error 'Docker deployment health check failed'
+
     exit 1
 }
 
@@ -272,7 +303,9 @@ Write-Host 'Docker deployment health check passed.'
 
         stage('Docker Deployment Verification') {
             steps {
+
                 bat """
+
                     echo ==========================================
                     echo Docker Deployment Verification
                     echo ==========================================
@@ -299,7 +332,7 @@ Write-Host 'Docker deployment health check passed.'
                     echo ===== Application API =====
                     echo.
 
-                    powershell -NoProfile -Command "Invoke-WebRequest -Uri 'http://localhost:${params.DOCKER_PORT}/api/properties' -UseBasicParsing | Select-Object StatusCode"
+                    powershell -NoProfile -Command "Invoke-WebRequest -Uri 'http://localhost:${params.DOCKER_PORT}/api/properties' -UseBasicParsing | Select-Object StatusCode
                 """
             }
         }
@@ -308,25 +341,32 @@ Write-Host 'Docker deployment health check passed.'
     post {
 
         success {
+
             echo "=============================================="
             echo "DOCKER CONTINUOUS DELIVERY SUCCESS"
             echo "=============================================="
+
             echo "Application deployed successfully."
             echo "Environment: ${params.DEPLOY_ENV}"
             echo "Application URL: http://localhost:${params.DOCKER_PORT}/api/properties"
             echo "Docker Image: ${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+
             echo "=============================================="
         }
 
         failure {
+
             echo "=============================================="
             echo "DOCKER CONTINUOUS DELIVERY FAILED"
             echo "=============================================="
+
             echo "Check the Jenkins console output for the failed stage."
+
             echo "=============================================="
         }
 
         always {
+
             echo "Jenkins Docker pipeline completed."
         }
     }
