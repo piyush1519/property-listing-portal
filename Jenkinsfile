@@ -44,6 +44,8 @@ pipeline {
 
                     docker --version
                     docker info
+
+                    if errorlevel 1 exit /b 1
                 '''
             }
         }
@@ -60,8 +62,6 @@ pipeline {
                         echo ==========================================
                         echo Starting Docker MySQL
                         echo ==========================================
-
-                        set MYSQL_ROOT_PASSWORD=%MYSQL_ROOT_PASSWORD%
 
                         docker compose -f docker-compose.yml up -d mysql
 
@@ -179,8 +179,11 @@ pipeline {
         stage('Docker Registry Tag') {
             steps {
                 script {
-                    def localImage = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
-                    def registryImage = "${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+                    def localImage =
+                        "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+
+                    def registryImage =
+                        "${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
                     bat """
                         echo ==========================================
@@ -214,7 +217,8 @@ pipeline {
                     )
                 ]) {
                     script {
-                        def registryImage = "${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+                        def registryImage =
+                            "${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
                         bat """
                             echo ==========================================
@@ -257,7 +261,8 @@ pipeline {
                     )
                 ]) {
                     script {
-                        def imageTag = "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+                        def imageTag =
+                            "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
                         bat """
                             echo ==========================================
@@ -276,7 +281,15 @@ pipeline {
                             echo Starting new application container...
                             echo.
 
-                            docker run -d --name ${env.CONTAINER_NAME} --network property-listing-portal-pipeline_default -p ${params.DOCKER_PORT}:${env.APP_PORT} -e DB_HOST=mysql -e DB_PORT=3306 -e DB_USERNAME=root -e DB_PASSWORD=%DB_PASSWORD% ${imageTag}
+                            docker run -d ^
+                              --name ${env.CONTAINER_NAME} ^
+                              --network property-listing-portal-pipeline_default ^
+                              -p ${params.DOCKER_PORT}:${env.APP_PORT} ^
+                              -e DB_HOST=mysql ^
+                              -e DB_PORT=3306 ^
+                              -e DB_USERNAME=root ^
+                              -e DB_PASSWORD=%DB_PASSWORD% ^
+                              ${imageTag}
 
                             if errorlevel 1 exit /b 1
 
@@ -303,54 +316,68 @@ pipeline {
         stage('Docker Health Check') {
             steps {
                 script {
-                    writeFile file: 'health-check.ps1', text: """
-\\$url = 'http://localhost:${params.DOCKER_PORT}/api/properties'
-\\$success = \\$false
+
+                    def healthCheckScript = '''
+$url = 'http://localhost:__DOCKER_PORT__/api/properties'
+$success = $false
 
 Write-Host '=========================================='
 Write-Host 'Docker Application Health Check'
 Write-Host '=========================================='
 
-Write-Host "URL: \\$url"
+Write-Host "URL: $url"
 Write-Host ''
 
-for (\\$i = 1; \\$i -le 12; \\$i++) {
+for ($i = 1; $i -le 12; $i++) {
 
     try {
 
-        \\$response = Invoke-WebRequest `
-            -Uri \\$url `
+        $response = Invoke-WebRequest `
+            -Uri $url `
             -UseBasicParsing `
             -TimeoutSec 5
 
-        \\$statusCode = \\$response.StatusCode
+        $statusCode = $response.StatusCode
 
-        Write-Host "Attempt \\$i : HTTP \\$statusCode"
+        Write-Host "Attempt $i : HTTP $statusCode"
 
-        if (\\$statusCode -eq 200) {
-            \\$success = \\$true
+        if ($statusCode -eq 200) {
+            $success = $true
             break
         }
 
     }
     catch {
-        Write-Host "Attempt \\$i : application not ready"
+        Write-Host "Attempt $i : application not ready"
     }
 
     Start-Sleep -Seconds 5
 }
 
-if (-not \\$success) {
+if (-not $success) {
     Write-Error 'Docker deployment health check failed'
     exit 1
 }
 
 Write-Host ''
 Write-Host 'Docker deployment health check passed.'
-"""
+'''
+
+                    healthCheckScript =
+                        healthCheckScript.replace(
+                            '__DOCKER_PORT__',
+                            params.DOCKER_PORT
+                        )
+
+                    writeFile(
+                        file: 'health-check.ps1',
+                        text: healthCheckScript
+                    )
 
                     bat '''
                         powershell -NoProfile -ExecutionPolicy Bypass -File health-check.ps1
+
+                        if errorlevel 1 exit /b 1
                     '''
                 }
             }
@@ -364,38 +391,37 @@ Write-Host 'Docker deployment health check passed.'
                     echo ==========================================
 
                     echo.
-
                     echo ===== Docker Containers =====
                     echo.
 
                     docker ps
 
                     echo.
-
                     echo ===== Application Container =====
                     echo.
 
                     docker inspect property-portal-container --format "{{.Config.Image}}"
 
                     echo.
-
                     echo ===== Port Mapping =====
                     echo.
 
                     docker port property-portal-container
 
                     echo.
-
                     echo ===== Application API =====
                     echo.
 
                     powershell -NoProfile -Command "Invoke-WebRequest -Uri 'http://localhost:${params.DOCKER_PORT}/api/properties' -UseBasicParsing | Select-Object StatusCode"
+
+                    if errorlevel 1 exit /b 1
                 """
             }
         }
     }
 
     post {
+
         success {
             echo "=============================================="
             echo "DOCKER CONTINUOUS DELIVERY SUCCESS"
