@@ -382,9 +382,9 @@ pipeline {
 
                     writeFile file: 'health-check.ps1', text: """
 
-\\$url = 'http://localhost:${params.DOCKER_PORT}/api/properties'
+\$url = 'http://localhost:${params.DOCKER_PORT}/api/properties'
 
-\\$success = \\$false
+\$success = \$false
 
 Write-Host '=========================================='
 
@@ -392,29 +392,29 @@ Write-Host 'Docker Application Health Check'
 
 Write-Host '=========================================='
 
-Write-Host "URL: \\$url"
+Write-Host "URL: \$url"
 
 Write-Host ''
 
-for (\\$i = 1; \\$i -le 12; \\$i++) {
+for (\$i = 1; \$i -le 12; \$i++) {
 
     try {
 
-        \\$response = Invoke-WebRequest \`
+        \$response = Invoke-WebRequest `
 
-            -Uri \\$url \`
+            -Uri \$url `
 
-            -UseBasicParsing \`
+            -UseBasicParsing `
 
             -TimeoutSec 5
 
-        \\$statusCode = \\$response.StatusCode
+        \$statusCode = \$response.StatusCode
 
-        Write-Host "Attempt \\$i : HTTP \\$statusCode"
+        Write-Host "Attempt \$i : HTTP \$statusCode"
 
-        if (\\$statusCode -eq 200) {
+        if (\$statusCode -eq 200) {
 
-            \\$success = \\$true
+            \$success = \$true
 
             break
 
@@ -424,7 +424,7 @@ for (\\$i = 1; \\$i -le 12; \\$i++) {
 
     catch {
 
-        Write-Host "Attempt \\$i : application not ready"
+        Write-Host "Attempt \$i : application not ready"
 
     }
 
@@ -432,7 +432,7 @@ for (\\$i = 1; \\$i -le 12; \\$i++) {
 
 }
 
-if (-not \\$success) {
+if (-not \$success) {
 
     Write-Error 'Docker deployment health check failed'
 
