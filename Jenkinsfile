@@ -1,4 +1,4 @@
-```groovy
+
 pipeline {
     agent any
 
@@ -361,4 +361,4 @@ Write-Host 'Docker deployment health check passed.'
         }
     }
 }
-```
+
