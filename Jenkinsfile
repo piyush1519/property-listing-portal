@@ -236,51 +236,8 @@ pipeline {
 
         stage('Docker Registry Push') {
     steps {
-
-        withCredentials([
-            usernamePassword(
-                credentialsId: 'dockerhub-credentials',
-                usernameVariable: 'DOCKER_USERNAME',
-                passwordVariable: 'DOCKER_PASSWORD'
-            )
-        ]) {
-
-            script {
-
-                def registryImage =
-                    "${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
-
-                bat """
-
-                    echo ==========================================
-                    echo Docker Registry Push
-                    echo ==========================================
-                    echo Registry Image: ${registryImage}
-                    echo.
-
-                    echo Logging in to Docker Hub...
-
-                    echo %DOCKER_PASSWORD% | docker login --username %DOCKER_USERNAME% --password-stdin
-
-                    if errorlevel 1 exit /b 1
-
-                    echo.
-                    echo Docker Hub login successful.
-                    echo.
-
-                    echo Pushing Docker image...
-
-                    docker push ${registryImage}
-
-                    if errorlevel 1 exit /b 1
-
-                    echo.
-                    echo Docker image pushed successfully.
-                    echo Registry Image: ${registryImage}
-
-                """
-            }
-        }
+        echo 'Docker Hub push skipped for local CI/CD demonstration.'
+        echo 'Docker image is available locally for deployment.'
     }
 }
 
