@@ -7,6 +7,7 @@ pipeline {
     }
 
     parameters {
+
         string(
             name: 'DEPLOY_ENV',
             defaultValue: 'docker',
@@ -39,6 +40,7 @@ pipeline {
         stage('Docker Environment Check') {
             steps {
                 bat '''
+
                     echo ==========================================
                     echo Docker Environment Check
                     echo ==========================================
@@ -53,6 +55,7 @@ pipeline {
 
         stage('Start Docker MySQL') {
             steps {
+
                 withCredentials([
                     string(
                         credentialsId: 'mysql-db-password',
@@ -61,6 +64,7 @@ pipeline {
                 ]) {
 
                     bat '''
+
                         echo ==========================================
                         echo Starting Docker MySQL
                         echo ==========================================
@@ -75,6 +79,7 @@ pipeline {
 
                         powershell -NoProfile -Command ^
                           "$timeout = 120; $elapsed = 0; while ($elapsed -lt $timeout) { $status = docker inspect -f '{{.State.Health.Status}}' property-portal-mysql 2>$null; Write-Host ('MySQL health: ' + $status); if ($status -eq 'healthy') { exit 0 }; Start-Sleep -Seconds 5; $elapsed += 5 }; Write-Error 'MySQL did not become healthy within 120 seconds'; exit 1"
+
                     '''
                 }
             }
@@ -82,7 +87,9 @@ pipeline {
 
         stage('Build') {
             steps {
+
                 bat '''
+
                     echo ==========================================
                     echo Maven Build
                     echo ==========================================
@@ -90,12 +97,14 @@ pipeline {
                     mvn -f backend/pom.xml clean compile
 
                     if errorlevel 1 exit /b 1
+
                 '''
             }
         }
 
         stage('Test') {
             steps {
+
                 withCredentials([
                     string(
                         credentialsId: 'mysql-db-password',
@@ -104,6 +113,7 @@ pipeline {
                 ]) {
 
                     bat '''
+
                         echo ==========================================
                         echo Running Tests
                         echo ==========================================
@@ -123,6 +133,7 @@ pipeline {
                         mvn -f backend/pom.xml test
 
                         if errorlevel 1 exit /b 1
+
                     '''
                 }
             }
@@ -130,7 +141,9 @@ pipeline {
 
         stage('Package') {
             steps {
+
                 bat '''
+
                     echo ==========================================
                     echo Packaging Application
                     echo ==========================================
@@ -138,12 +151,14 @@ pipeline {
                     mvn -f backend/pom.xml package -DskipTests
 
                     if errorlevel 1 exit /b 1
+
                 '''
             }
         }
 
         stage('Archive Artifact') {
             steps {
+
                 echo '=========================================='
                 echo 'Archiving JAR Artifact'
                 echo '=========================================='
@@ -155,12 +170,14 @@ pipeline {
 
         stage('Docker Build') {
             steps {
+
                 script {
 
                     def imageTag =
                         "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
                     bat """
+
                         echo ==========================================
                         echo Building Docker Image
                         echo ==========================================
@@ -176,6 +193,7 @@ pipeline {
                         echo.
 
                         docker images ${env.IMAGE_NAME}
+
                     """
                 }
             }
@@ -183,6 +201,7 @@ pipeline {
 
         stage('Docker Registry Tag') {
             steps {
+
                 script {
 
                     def localImage =
@@ -192,6 +211,7 @@ pipeline {
                         "${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
                     bat """
+
                         echo ==========================================
                         echo Docker Registry Tag
                         echo ==========================================
@@ -208,58 +228,61 @@ pipeline {
                         echo.
 
                         docker images ${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}
+
                     """
                 }
             }
         }
 
         stage('Docker Registry Push') {
-            steps {
+    steps {
 
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'dockerhub-credentials',
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
-                    )
-                ]) {
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'dockerhub-credentials',
+                usernameVariable: 'DOCKER_USERNAME',
+                passwordVariable: 'DOCKER_PASSWORD'
+            )
+        ]) {
 
-                    script {
+            script {
 
-                        def registryImage =
-                            "${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+                def registryImage =
+                    "${env.DOCKERHUB_USERNAME}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
-                        bat """
-                            echo ==========================================
-                            echo Docker Registry Push
-                            echo ==========================================
-                            echo Registry Image: ${registryImage}
-                            echo.
+                bat """
 
-                            echo Logging in to Docker Hub...
+                    echo ==========================================
+                    echo Docker Registry Push
+                    echo ==========================================
+                    echo Registry Image: ${registryImage}
+                    echo.
 
-                            echo %DOCKER_PASSWORD% | docker login --username %DOCKER_USERNAME% --password-stdin
+                    echo Logging in to Docker Hub...
 
-                            if errorlevel 1 exit /b 1
+                    echo %DOCKER_PASSWORD% | docker login --username %DOCKER_USERNAME% --password-stdin
 
-                            echo.
-                            echo Docker Hub login successful.
-                            echo.
+                    if errorlevel 1 exit /b 1
 
-                            echo Pushing Docker image...
+                    echo.
+                    echo Docker Hub login successful.
+                    echo.
 
-                            docker push ${registryImage}
+                    echo Pushing Docker image...
 
-                            if errorlevel 1 exit /b 1
+                    docker push ${registryImage}
 
-                            echo.
-                            echo Docker image pushed successfully.
-                            echo Registry Image: ${registryImage}
-                        """
-                    }
-                }
+                    if errorlevel 1 exit /b 1
+
+                    echo.
+                    echo Docker image pushed successfully.
+                    echo Registry Image: ${registryImage}
+
+                """
             }
         }
+    }
+}
 
         stage('Docker Deploy') {
             steps {
@@ -277,6 +300,7 @@ pipeline {
                             "${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
 
                         bat """
+
                             echo ==========================================
                             echo Docker Deployment
                             echo ==========================================
@@ -319,6 +343,7 @@ pipeline {
                             echo Application Logs:
 
                             docker logs ${env.CONTAINER_NAME}
+
                         """
                     }
                 }
@@ -331,7 +356,9 @@ pipeline {
                 script {
 
                     def healthCheckScript = '''
+
 $url = 'http://localhost:__DOCKER_PORT__/api/properties'
+
 $success = $false
 
 Write-Host '=========================================='
@@ -374,6 +401,7 @@ if (-not $success) {
 
 Write-Host ''
 Write-Host 'Docker deployment health check passed.'
+
 '''
 
                     healthCheckScript =
@@ -388,9 +416,11 @@ Write-Host 'Docker deployment health check passed.'
                     )
 
                     bat '''
+
                         powershell -NoProfile -ExecutionPolicy Bypass -File health-check.ps1
 
                         if errorlevel 1 exit /b 1
+
                     '''
                 }
             }
@@ -400,6 +430,7 @@ Write-Host 'Docker deployment health check passed.'
             steps {
 
                 bat """
+
                     echo ==========================================
                     echo Docker Deployment Verification
                     echo ==========================================
@@ -429,6 +460,7 @@ Write-Host 'Docker deployment health check passed.'
                     powershell -NoProfile -Command "Invoke-WebRequest -Uri 'http://localhost:${params.DOCKER_PORT}/api/properties' -UseBasicParsing | Select-Object StatusCode"
 
                     if errorlevel 1 exit /b 1
+
                 """
             }
         }
